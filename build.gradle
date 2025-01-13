@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'de.unibw.mnp'
-version '1.11'
+version '1.12'
 
 repositories {
     mavenCentral()
