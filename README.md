@@ -27,10 +27,23 @@ Die erstellten JAR Dateien befinden sich dann unter `build/libs`.
 
 ## CLI Mode ##
 
-Um das automatische Testen von MI-Programmen zu vereinfachen, wurde dem Simulator ein CLI Modus hinzugefügt.
+Um das automatische Testen von MI-Programmen zu vereinfachen, wurde dem Simulator ein CLI (command-line interface) Modus hinzugefügt.
 In diesem Modus können Programme ohne die grafische Oberfläche ausgeführt werden.
-Nach jedem ausgeführten Befehl wird der Zustand der MI Maschine ausgegeben.
-Der CLI Modus kann mit `java cli.Main <Programmdatei> [Zustandsdatei]` aufgerufen werden.
+Der CLI Modus kann i.d.R. mit `java -jar mi-cli.jar <Programmdatei> [Zustandsdatei]` aufgerufen werden.
+Die vollständige Liste der akzeptierten Argumente sieht folgendermaßen aus:
+```
+cli -help
+cli <path to MI program> [-hex] [-quiet]
+cli <path to MI program> [state file] [-hex] [-quiet]
+```
+
+Mit der folgenden Erklärung (`<...>` stehen für erforderliche Argumente und `[...]` für optionale Argumente):
+- `<path to MI program>` ist ein Dateipfad zur Assemblertextdatei, die gelesen, analysiert, assembliert und schließlich ausgeführt wird.
+- `[state file]` ist eine Klartextdatei, die verwendet werden kann, um dem MI einen anderen Startmaschinenzustand zuzuweisen (siehe unten für ein Beispiel).
+- `-hex` weist `cli` an, alle Zahlen in hexadezimaler Form zu drucken. Standardmäßig werden sie dezimal gedruckt.
+- `-quiet` weist `cli` an, nur die endgültigen Werte aller Register auszugeben, nachdem das MI angehalten wurde. 
+  Standardmäßig druckt `cli` Ausführungsspuren (siehe unten). 
+  Das heißt, nach jedem Befehl druckt `cli` die Änderungen, die der Befehl am Maschinenzustand vorgenommen hat.
 
 #### Beispiel ####
 
