@@ -1,0 +1,8 @@
+#!/bin/sh
+
+OLD_VERSION="1.12"
+NEW_VERSION="1.13"
+
+sed -i 's/'${OLD_VERSION}'/'${NEW_VERSION}'/g' build.gradle
+sed -i 's/'${OLD_VERSION}'/'${NEW_VERSION}'/g' src/main/java/gui/CONSTANTS.java
+
