@@ -4,10 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import gui.CONSTANTS;
+
 public class Main {
     public static void usage(int code) {
             System.err.println("usage:");
             System.err.println("        cli -help");
+            System.err.println("        cli -version");
             System.err.println("        cli <path to MI program> [-hex] [-quiet]");
             System.err.println("        cli <path to MI program> [state file] [-hex] [-quiet]");
             System.exit(code);
@@ -21,6 +24,10 @@ public class Main {
         }
         if (args[0].equals("-help")) {
             Main.usage(0);
+        }
+        if (args[0].equals("-version")) {
+            System.out.println(CONSTANTS.VERSION);
+            System.exit(0);
         }
 
         // load the program text
