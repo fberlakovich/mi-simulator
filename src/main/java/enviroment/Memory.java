@@ -30,12 +30,7 @@ public class Memory {
      */
     private ArrayList<MemoryTableEntry> data;
 
-    /**
-     * Liste der Speicherzellen, die rit gefärbt werden sollen
-     */
-    private ArrayList<MyByte> changed_list = new ArrayList<MyByte>();
-
-    /**
+   /**
      * Liste geänderter Speicherzellen
      */
     private Map<Integer, MyByte> changedCells = new HashMap<>();
@@ -48,7 +43,7 @@ public class Memory {
             memory[i] = new MyByte(0);
         }
         createMemory();
-
+        resetChanges();
     }
 
     /**
@@ -76,19 +71,9 @@ public class Memory {
             }
         }
         memoryJList = new JList(new MemoryTable(data));
-
     }
 
-    /**
-     * Gibt die Liste der geaenderten Speicherzellen zurueck
-     *
-     * @return Liste der geaenderten Speicherzellen
-     */
-    public ArrayList<MyByte> getChangedList() {
-        return changed_list;
-    }
-
-    /**
+   /**
      * Gibt den Inhalt des Speichers zurueck
      *
      * @param begin  Anfang des Speicherauszuges
@@ -194,7 +179,7 @@ public class Memory {
 
             for (int i = beg; i <= Enviroment.STACKBEGIN + 8; i++) {
 
-                if (Enviroment.MEMORY.getChangedList().contains(memory[i])) {
+                if (Enviroment.MEMORY.getChanges().containsKey(i)) {
                     line += "<font color=\"#ff0000\"> " + memory[i].toString()
                             + "</font>";
 
@@ -224,17 +209,6 @@ public class Memory {
     }
 
     /**
-     * Setzt den Speicher zurueck auf Grundlage der geaenderten Speicherzellen
-     */
-    public void reset() {
-        for (MyByte value : changedCells.values()) {
-            value.setContent((byte) 0);
-        }
-
-        changedCells = new HashMap<>();
-    }
-
-    /**
      * Schreibt in den Speicher
      *
      * @param begin   Anfangsadresse
@@ -255,7 +229,6 @@ public class Memory {
             int address = begin + i;
             memory[address].setContent((byte) content[i].getContent()); // new
             // MyByte(content[i].getContent());
-            changed_list.add(memory[address]);
             changedCells.put(address, memory[address]);
         }
 
@@ -264,8 +237,8 @@ public class Memory {
     /**
      * Loescht die Liste der Adressen, die rot dargestellt werden sollen
      */
-    public void reset_changedList() {
-        changed_list = new ArrayList<MyByte>();
+    public void resetChanges() {
+        changedCells = new HashMap<>();
     }
 
     public Map<Integer, MyByte> getChanges() {

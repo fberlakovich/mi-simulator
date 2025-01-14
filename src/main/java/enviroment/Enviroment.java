@@ -146,11 +146,7 @@ public class Enviroment {
      * Initalisiert die Laufzeitumgebung
      */
     public static void init() {
-        if (MEMORY == null) {
-            MEMORY = new Memory();
-        } else {
-            MEMORY.reset();
-        }
+        MEMORY = new Memory();
         REGISTERS = new RegisterBody();
         flags = new Flags();
         STACKBEGIN = 0;

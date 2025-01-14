@@ -6,6 +6,8 @@ package gui;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 
+import java.util.Map;
+import java.util.HashMap;
 import java.util.ArrayList;
 
 /**
@@ -50,16 +52,20 @@ public class MemoryTableEntry {
     @Override
     public String toString() {
 
-        StringBuffer ret2 = new StringBuffer(adr + " ");
         boolean html = false;
+        StringBuffer ret2 = new StringBuffer(adr + " ");
+        int address = Integer.parseInt(this.adr, 16);
+        Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
+
         for (MyByte in : data) {
-            if (Enviroment.MEMORY.getChangedList().contains(in)) {
+            if (changes.containsKey(address)) {
                 ret2.append(
                         "<font color=\"#ff0000\">" + in.toString() + " </font>");
                 html = true;
             } else {
                 ret2.append(in.toString() + " ");
             }
+            address++;
         }
         return html ? "<html>" + ret2.toString() + "</html>" : ret2.toString();
     }

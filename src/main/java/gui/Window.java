@@ -453,7 +453,7 @@ public class Window extends javax.swing.JFrame {
             buttonPanel.getBtnStop().setEnabled(true);
             buttonPanel.getBtnStep().setEnabled(false);
             Enviroment.REGISTERS.reset();
-            Enviroment.MEMORY.reset_changedList();
+            Enviroment.MEMORY.resetChanges();
             run = new RunProgram(buttonPanel.getBtnRun(), buttonPanel.getBtnStop(), buttonPanel.getBtnStep(),
                     buttonPanel.getBtnRestart());
             run.start();
@@ -464,7 +464,7 @@ public class Window extends javax.swing.JFrame {
             @Override
             public void actionPerformed(ActionEvent e1) {
                 Enviroment.REGISTERS.reset();
-                Enviroment.MEMORY.reset_changedList();
+                Enviroment.MEMORY.resetChanges();
                 nex = Enviroment.getNextCommand();
 
                 if (nex != null && !(nex instanceof Halt)) {
