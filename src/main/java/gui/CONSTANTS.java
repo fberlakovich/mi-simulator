@@ -12,7 +12,7 @@ import java.awt.*;
  */
 public class CONSTANTS {
 
-    public final static String VERSION = "Version 1.13";
+    public final static String VERSION = "Version 1.14";
     // Fehlermeldungen
     public final static String ERROR_SAVEFILE = "Fehler beim Speichern der Datei.";
     public final static String ERROR_OPENFILE = "Fehler beim Öffnen der Datei.";
