@@ -57,22 +57,42 @@ public class Register {
      * @return Inhalt des Registers
      */
     public MyByte[] getContent(int length) {
-        assert length == 1 || length == 2 || length == 4 || length == 8;
-        ByteBuffer buffer = ByteBuffer.allocate(length).order(ByteOrder.BIG_ENDIAN);
-        buffer.putInt(content);
-        if (length == 8) {
-            Register next = Enviroment.REGISTERS.getRegister(
-                    (nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
-            buffer.putInt(next.getContentAsNumber(4));
+        MyByte[] ret;
+        switch (length) {
+            case 1:
+                ret = new MyByte[1];
+                ret[0] = new MyByte((byte)(this.content & 0x000000ff));
+                return ret;
+            case 2:
+                ret = new MyByte[2];
+                ret[0] = new MyByte((byte)((this.content & 0x0000ff00) >> 8));
+                ret[1] = new MyByte((byte)((this.content & 0x000000ff) >> 0));
+                return ret;
+            case 4:
+                ret = new MyByte[4];
+                ret[0] = new MyByte((byte)((this.content & 0xff000000) >> 24));
+                ret[1] = new MyByte((byte)((this.content & 0x00ff0000) >> 16));
+                ret[2] = new MyByte((byte)((this.content & 0x0000ff00) >> 8));
+                ret[3] = new MyByte((byte)((this.content & 0x000000ff) >> 0));
+                return ret;
+            case 8:
+                ret = new MyByte[8];
+                ret[0] = new MyByte((byte)((this.content & 0xff000000) >> 24));
+                ret[1] = new MyByte((byte)((this.content & 0x00ff0000) >> 16));
+                ret[2] = new MyByte((byte)((this.content & 0x0000ff00) >> 8));
+                ret[3] = new MyByte((byte)((this.content & 0x000000ff) >> 0));
+                Register wrap = Enviroment.REGISTERS.getRegister(
+                        (nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
+                MyByte[] next = wrap.getContent(4);
+                ret[4] = next[0];
+                ret[5] = next[1];
+                ret[6] = next[2];
+                ret[7] = next[3];
+                return ret;
+            default:
+                System.out.println("Nicht zugelassene Zugriffslaenge: " + length);
+                return null;
         }
-
-        byte[] bytes = buffer.array();
-        MyByte[] result = new MyByte[length];
-        for (int i = 0; i < length; i++) {
-            result[i] = new MyByte(bytes[i]);
-        }
-
-        return result;
     }
 
     /**
@@ -96,28 +116,37 @@ public class Register {
      *
      * @param content Inhalt
      */
-    public void setContent(MyByte[] content) {
-        int length = content.length;
-        assert length == 1 || length == 2 || length == 4 || length == 8;
-
-        ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES).order(ByteOrder.BIG_ENDIAN);
-        for (int i = 0; i < 4; i++) {
-            buffer.put((byte) content[i].getContent());
-        }
-        // in Java 1.8 we need the explicit cast because ByteBuffer.rewind() returns "this" as a generic ByteBuffer
-        //noinspection RedundantCast
-        this.content = ((ByteBuffer) buffer.rewind()).getInt();
-        if (content.length == 8) {
-            Register next = Enviroment.REGISTERS.getRegister((nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
-            next.setContent(new MyByte[]{content[4], content[5], content[6], content[7]});
+    public void setContent(MyByte[] data) {
+        switch (data.length) {
+            case 1:
+                content = data[0].getContent();
+                break;
+            case 2:
+                content  = data[0].getContent() << 8;
+                content |= data[1].getContent() << 0;
+                break;
+            case 4:
+                content  = data[0].getContent() << 24;
+                content |= data[1].getContent() << 16;
+                content |= data[2].getContent() << 8;
+                content |= data[3].getContent() << 0;
+                break;
+            case 8:
+                content  = data[0].getContent() << 24;
+                content |= data[1].getContent() << 16;
+                content |= data[2].getContent() << 8;
+                content |= data[3].getContent() << 0;
+                Register wrap = 
+                    Enviroment.REGISTERS.getRegister((nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
+                wrap.setContent(new MyByte[]{data[4], data[5], data[6], data[7]});
+                break;
         }
 
         if (isStack && Enviroment.STACKBEGIN == 0) {
-            Enviroment.STACKBEGIN = NumberConversion.myBytetoIntWithSign(content);
+            Enviroment.STACKBEGIN = NumberConversion.myBytetoIntWithSign(data);
         }
 
         changed = true;
-
     }
 
     /**
