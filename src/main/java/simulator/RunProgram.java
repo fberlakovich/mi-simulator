@@ -3,22 +3,18 @@
  */
 package simulator;
 
+import core.ProgramExecutor;
 import enviroment.Enviroment;
-import enviroment.NumberConversion;
 
 import javax.swing.*;
 
 /**
- * Klaase für die Programmausführung.
+ * Klasse für die GUI-basierte Programmausführung.
+ * Diese Klasse ist ein Adapter zwischen ProgramExecutor und der GUI.
  *
  * @author Matthias Oehme
  */
 public class RunProgram extends Thread {
-
-    /**
-     * nächster Befehl
-     */
-    private Command next;
 
     /**
      * Run-button
@@ -38,11 +34,11 @@ public class RunProgram extends Thread {
     /** Step-Button */
     private JButton button_step;
 
-    /** The runs. */
-    private boolean stop_program = false;
+    /** The executor */
+    private ProgramExecutor executor;
 
     /**
-     * Konstrktor für einen Programmablauf
+     * Konstruktor für einen Programmablauf
      *
      * @param btnRun
      *            Run-button
@@ -59,6 +55,34 @@ public class RunProgram extends Thread {
         button_step = btnStep;
         button_restart = btnRestart;
 
+        executor = new ProgramExecutor(new ProgramExecutor.ExecutionStateListener() {
+            @Override
+            public void onExecutionStart() {
+                button_stop.setEnabled(true);
+                button_run.setEnabled(false);
+                button_step.setEnabled(false);
+                button_restart.setEnabled(false);
+                Enviroment.frame.updateUI();
+            }
+
+            @Override
+            public void onExecutionStop(ProgramExecutor.StopReason reason) {
+                if (Enviroment.getText() != null) {
+                    Enviroment.getText().highlightNextCommand();
+                }
+                button_stop.setEnabled(false);
+                button_restart.setEnabled(true);
+                Command next = Enviroment.getNextCommand();
+                button_run.setEnabled(!(next == null || next instanceof Halt));
+                button_step.setEnabled(!(next == null || next instanceof Halt));
+                Enviroment.frame.updateUI();
+            }
+
+            @Override
+            public void onCommandExecuted(Command command) {
+                // No special handling needed for each command in GUI mode
+            }
+        });
     }
 
     /*
@@ -68,35 +92,7 @@ public class RunProgram extends Thread {
      */
     @Override
     public void run() {
-        boolean breakPoint = false;
-        button_stop.setEnabled(true);
-        button_run.setEnabled(false);
-        button_step.setEnabled(false);
-        button_restart.setEnabled(false);
-        Enviroment.frame.updateUI();
-        next = Enviroment.getNextCommand();
-        while (next != null && !stop_program && !breakPoint) {
-            next.run();
-            if (next instanceof Halt) {
-                break; // Programmende erreicht
-            }
-            next = Enviroment.readNextCommand();
-            if (next != null) {
-                Command next_precode = Enviroment.getCommandperAddress(
-                        next.getAdress());
-                if (next_precode != null && (NumberConversion.myByteEqual(
-                        next.getOpCode(), next_precode.getOpCode()))) {
-                    breakPoint = next_precode.hasBreakPoint();
-                }
-            }
-        }
-        Enviroment.getText().highlightNextCommand();
-        button_stop.setEnabled(false);
-        button_restart.setEnabled(true);
-        button_run.setEnabled(!(next == null || next instanceof Halt));
-        button_step.setEnabled(!(next == null || next instanceof Halt));
-        Enviroment.frame.updateUI();
-
+        executor.executeProgram();
     }
 
     /**
@@ -104,7 +100,7 @@ public class RunProgram extends Thread {
      *
      */
     public void stopProgram() {
-        stop_program = true;
+        executor.stop();
     }
 
 }
