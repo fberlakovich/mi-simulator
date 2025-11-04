@@ -7,7 +7,7 @@ import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
 import enviroment.Register;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Ret-Befehl
@@ -53,8 +53,8 @@ public class Ret extends Command {
      */
     @Override
     public synchronized void run() {
-        CellarAddressing sp = new CellarAddressing(CONSTANTS.SP_REGISTER, 4, 4, true);
-        Register pc = Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER);
+        CellarAddressing sp = new CellarAddressing(Constants.SP_REGISTER, 4, 4, true);
+        Register pc = Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER);
         int ziel = NumberConversion.myBytetoIntWithSign(sp.getContent());
         pc.setContent(NumberConversion.intToByte(ziel, 4));
         // Enviroment.setNextCommand(Enviroment.getCommand(ziel));

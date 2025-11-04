@@ -4,7 +4,7 @@ import codegenerator.Program;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 import parser.Parser;
 import scanner.Scanner;
 import simulator.Command;
@@ -25,10 +25,10 @@ public class MachineUtils {
         Program program = parser.getProgramm();
         ArrayList<Command> commands = program.getCommands();
         if (commands.isEmpty()) {
-            System.err.println(CONSTANTS.ASSEMBLE_UNSUCCESSFUL);
+            System.err.println(Constants.ASSEMBLE_UNSUCCESSFUL);
             return false;
         }
-        System.out.println(CONSTANTS.ASSEMBLE_SUCCESSFUL);
+        System.out.println(Constants.ASSEMBLE_SUCCESSFUL);
         Enviroment.setProgram(program);
         Enviroment.MEMORY.setContent(0, program.getOpCode());
         return true;

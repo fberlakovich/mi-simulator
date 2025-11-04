@@ -4,7 +4,7 @@ import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
 import enviroment.Register;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Operandenspeziikation für Relative Adressierung
@@ -87,7 +87,7 @@ public class RelAddressing implements Operand, AdressGetter {
      */
     @Override
     public int getAdress() {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
 
             return index != null ?
@@ -114,7 +114,7 @@ public class RelAddressing implements Operand, AdressGetter {
      */
     @Override
     public MyByte[] getContent() {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
             return index != null ?
                     new AbsAddress(address + offset + length
@@ -187,7 +187,7 @@ public class RelAddressing implements Operand, AdressGetter {
      */
     @Override
     public void setContent(MyByte[] content, int length) {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
             AbsAddress ort = index != null ?
                     new AbsAddress(address + offset + length

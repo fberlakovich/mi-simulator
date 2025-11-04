@@ -1,6 +1,6 @@
 package enviroment;
 
-import gui.CONSTANTS;
+import core.Constants;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -82,7 +82,7 @@ public class Register {
                 ret[2] = new MyByte((byte)((this.content & 0x0000ff00) >> 8));
                 ret[3] = new MyByte((byte)((this.content & 0x000000ff) >> 0));
                 Register wrap = Enviroment.REGISTERS.getRegister(
-                        (nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
+                        (nr + 1) % Constants.NUMBER_OF_REGISTER);
                 MyByte[] next = wrap.getContent(4);
                 ret[4] = next[0];
                 ret[5] = next[1];
@@ -137,7 +137,7 @@ public class Register {
                 content |= data[2].getContent() << 8;
                 content |= data[3].getContent() << 0;
                 Register wrap = 
-                    Enviroment.REGISTERS.getRegister((nr + 1) % CONSTANTS.NUMBER_OF_REGISTER);
+                    Enviroment.REGISTERS.getRegister((nr + 1) % Constants.NUMBER_OF_REGISTER);
                 wrap.setContent(new MyByte[]{data[4], data[5], data[6], data[7]});
                 break;
         }

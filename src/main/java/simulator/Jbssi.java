@@ -7,7 +7,7 @@ import codegenerator.LabelInUse;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 import java.util.ArrayList;
 
@@ -158,7 +158,7 @@ public class Jbssi extends Command {
         bitfield >>= sh_li;
 
         if (bitfield == 1) {
-            Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER)
+            Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER)
                     .setContent(NumberConversion.intToByte(ziel, 4));
         }
 

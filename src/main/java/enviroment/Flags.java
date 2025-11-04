@@ -1,10 +1,5 @@
 package enviroment;
 
-import gui.FixedStateCheckBox;
-
-import javax.swing.*;
-import java.awt.*;
-
 /**
  * Diese Klasse repraesentiert die Flags der MI
  */

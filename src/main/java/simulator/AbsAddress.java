@@ -3,7 +3,7 @@ package simulator;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Operandenspezifikation für die Absolute Adressierung
@@ -113,7 +113,7 @@ public class AbsAddress implements Operand, AdressGetter {
     @Override
     public MyByte[] getOpCode() {
         if (hasLabel()) {
-            return new RelAddressing(adress - ort + offset - 1, CONSTANTS.PC_REGISTER,
+            return new RelAddressing(adress - ort + offset - 1, Constants.PC_REGISTER,
                     length, ort).getOpCode();
         }
         MyByte[] ret = new MyByte[5];

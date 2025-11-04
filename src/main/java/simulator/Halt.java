@@ -6,7 +6,7 @@ package simulator;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Halt-Befehl
@@ -52,7 +52,7 @@ public class Halt extends Command {
      */
     @Override
     public synchronized void run() {
-        Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER)
+        Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER)
                 .setContent(NumberConversion.intToByte(adress, 4));
     }
 

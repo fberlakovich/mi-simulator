@@ -4,7 +4,7 @@ import codegenerator.LabelInUse;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 import java.util.ArrayList;
 
@@ -112,12 +112,12 @@ public class Call extends Command {
         } else {
             ziel = op1.getAdress();
         }
-        CellarAddressing test = new CellarAddressing(CONSTANTS.SP_REGISTER, 4, -4, false);
+        CellarAddressing test = new CellarAddressing(Constants.SP_REGISTER, 4, -4, false);
 
         test.setContent(
                 NumberConversion.intToByte(Enviroment.getPC() + getOpCode().length, 4), 4);
 
-        Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER)
+        Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER)
                 .setContent(NumberConversion.intToByte(ziel, 4));
     }
 

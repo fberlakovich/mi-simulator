@@ -4,7 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
-import gui.CONSTANTS;
+import core.Constants;
 
 public class Main {
     public static void usage(int code) {
@@ -26,7 +26,7 @@ public class Main {
             Main.usage(0);
         }
         if (args[0].equals("-version")) {
-            System.out.println(CONSTANTS.VERSION);
+            System.out.println(Constants.VERSION);
             System.exit(0);
         }
 

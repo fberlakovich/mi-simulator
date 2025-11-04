@@ -4,7 +4,7 @@ import codegenerator.LabelInUse;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 import java.util.ArrayList;
 
@@ -158,7 +158,7 @@ public abstract class Command {
      * Methode zur Ausführung eines Befehls
      */
     public synchronized void run() {
-        Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER).setContent(
+        Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER).setContent(
                 NumberConversion.intToByte(getAdress() + getOpCode().length, 4));
 
     }
