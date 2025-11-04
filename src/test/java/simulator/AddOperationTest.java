@@ -21,7 +21,7 @@ public class AddOperationTest extends MIOperationTestBase {
 
         assertTrue(executeProgram(program));
         
-        // R2 should now contain 5 + 3 = 8
+        // ADD B R1, R2 performs R2 = R2 + R1, so R2 should contain 3 + 5 = 8
         assertEquals(8, getRegisterByte(2));
     }
 
@@ -73,7 +73,8 @@ public class AddOperationTest extends MIOperationTestBase {
 
         assertTrue(executeProgram(program));
         
-        // Byte addition: 255 + 1 = 256 (0 with carry)
+        // Byte addition: 255 + 1 = 256, which exceeds 8-bit range (255)
+        // Result wraps around to 0 and carry flag is set
         assertEquals(0, getRegisterByte(2));
         assertTrue("Carry flag should be set", isCarryFlag());
     }
