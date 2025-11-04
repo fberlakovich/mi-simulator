@@ -7,7 +7,7 @@ import codegenerator.LabelInUse;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
-import gui.CONSTANTS;
+import core.Constants;
 
 import java.util.ArrayList;
 
@@ -170,7 +170,7 @@ public class Jump extends Command {
         if (jump) {
             // System.out.println("Jump: " + ziel);
             // Enviroment.setNextCommand(nex);
-            Enviroment.REGISTERS.getRegister(CONSTANTS.PC_REGISTER)
+            Enviroment.REGISTERS.getRegister(Constants.PC_REGISTER)
                     .setContent(NumberConversion.intToByte(ziel, 4));
         } else {
             super.run();

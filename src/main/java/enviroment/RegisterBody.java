@@ -1,6 +1,6 @@
 package enviroment;
 
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Diese Klasse repraesentiert den Registerkoerper der MI
@@ -10,14 +10,14 @@ public class RegisterBody {
     /**
      * Array mit den Registern
      */
-    private Register[] registers = new Register[CONSTANTS.NUMBER_OF_REGISTER];
+    private Register[] registers = new Register[Constants.NUMBER_OF_REGISTER];
 
     /**
      * Instaziiert den RegisterKoerper
      */
     public RegisterBody() {
-        for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            registers[i] = (i == CONSTANTS.SP_REGISTER) ?
+        for (int i = 0; i < Constants.NUMBER_OF_REGISTER; i++) {
+            registers[i] = (i == Constants.SP_REGISTER) ?
                     new Register(i, true) :
                     new Register(i);
         }

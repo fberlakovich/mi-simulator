@@ -1,5 +1,6 @@
 package enviroment;
 
+import core.Constants;
 import gui.CONSTANTS;
 import gui.MemoryPanel;
 import gui.MemoryTable;
@@ -18,7 +19,7 @@ public class Memory {
     /**
      * Speicher der MI
      */
-    private MyByte[] memory = new MyByte[CONSTANTS.MEMORY_LENGTH];
+    private MyByte[] memory = new MyByte[Constants.MEMORY_LENGTH];
 
     /**
      * Darstellung des Speichers
@@ -39,7 +40,7 @@ public class Memory {
      * Konstrktur für den Speicher.
      */
     public Memory() {
-        for (int i = 0; i < CONSTANTS.MEMORY_LENGTH; i++) {
+        for (int i = 0; i < Constants.MEMORY_LENGTH; i++) {
             memory[i] = new MyByte(0);
         }
         createMemory();
@@ -55,7 +56,7 @@ public class Memory {
         String line = "000000";
 
         ArrayList<MyByte> list = new ArrayList<MyByte>();
-        for (int i = 0; i < CONSTANTS.MEMORY_LENGTH; i++) {
+        for (int i = 0; i < Constants.MEMORY_LENGTH; i++) {
             list.add(memory[i]);
             count++;
             if (count == 8) {
@@ -81,13 +82,9 @@ public class Memory {
      * @return Speicherauszug
      */
     public MyByte[] getContent(int begin, int length) {
-        if (begin < 0 || begin + length > CONSTANTS.MEMORY_LENGTH) {
-            Enviroment.frame.getRun().stopProgram();
-            JOptionPane.showMessageDialog(Enviroment.frame,
-                    CONSTANTS.ERROR_MEMORY_TEXT + begin,
-                    " CONSTANTS.ERROR_MEMORY_TITLE",
-                    JOptionPane.ERROR_MESSAGE);
-
+        if (begin < 0 || begin + length > Constants.MEMORY_LENGTH) {
+            Enviroment.getEventListener().onMemoryAccessError(begin);
+            Enviroment.getEventListener().onProgramStop();
             return NumberConversion.intToByte(0, length);
         }
         MyByte[] ret = new MyByte[length];
@@ -106,12 +103,8 @@ public class Memory {
      */
     public int getContentAsInt(int begin, int length) {
         if (begin < 0 || begin + length > 1048576) {
-            Enviroment.frame.getRun().stopProgram();
-            JOptionPane.showMessageDialog(Enviroment.frame,
-                    CONSTANTS.ERROR_MEMORY_TEXT + begin,
-                    " CONSTANTS.ERROR_MEMORY_TITLE",
-                    JOptionPane.ERROR_MESSAGE);
-
+            Enviroment.getEventListener().onMemoryAccessError(begin);
+            Enviroment.getEventListener().onProgramStop();
             return 0;
         }
         MyByte[] ret = new MyByte[length];
@@ -130,11 +123,8 @@ public class Memory {
      */
     public long getContentAsLong(int begin, int length) {
         if (begin < 0 || begin + length > 1048576) {
-            Enviroment.frame.getRun().stopProgram();
-            JOptionPane.showMessageDialog(Enviroment.frame,
-                    CONSTANTS.ERROR_MEMORY_TEXT + begin,
-                    " CONSTANTS.ERROR_MEMORY_TITLE",
-                    JOptionPane.ERROR_MESSAGE);
+            Enviroment.getEventListener().onMemoryAccessError(begin);
+            Enviroment.getEventListener().onProgramStop();
             return 0;
         }
         MyByte[] ret = new MyByte[length];
@@ -216,12 +206,9 @@ public class Memory {
      */
     public void setContent(int begin, MyByte[] content) {
 
-        if (begin < 0 || begin + content.length > CONSTANTS.MEMORY_LENGTH) {
-            Enviroment.frame.getRun().stopProgram();
-            JOptionPane.showMessageDialog(Enviroment.frame,
-                    CONSTANTS.ERROR_MEMORY_TEXT + begin,
-                    " CONSTANTS.ERROR_MEMORY_TITLE",
-                    JOptionPane.ERROR_MESSAGE);
+        if (begin < 0 || begin + content.length > Constants.MEMORY_LENGTH) {
+            Enviroment.getEventListener().onMemoryAccessError(begin);
+            Enviroment.getEventListener().onProgramStop();
             return;
         }
 

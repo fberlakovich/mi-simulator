@@ -3,7 +3,7 @@ package cli;
 import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.Register;
-import gui.CONSTANTS;
+import core.Constants;
 import simulator.Command;
 
 import java.io.PrintStream;
@@ -16,7 +16,7 @@ class PrintingMachine implements IMachine {
 
     private final boolean printHex;
 
-    private final int[] previousRegValues = new int[CONSTANTS.NUMBER_OF_REGISTER];
+    private final int[] previousRegValues = new int[Constants.NUMBER_OF_REGISTER];
     private final Map<Integer, MyByte> previousMemValues = new HashMap<>();
     private final Map<String, Boolean> previousFlags = new HashMap<>();
     private boolean initialized;
@@ -141,7 +141,7 @@ class PrintingMachine implements IMachine {
 
     private void printRegisterValues(int[] previousRegValues) {
         Separator separator = new Separator(out);
-        for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
+        for (int i = 0; i < Constants.NUMBER_OF_REGISTER; i++) {
             Register register = Enviroment.REGISTERS.getRegister(i);
             int regValue = register.getContentAsNumber(4);
             if (previousRegValues[i] == regValue && regValue == 0)

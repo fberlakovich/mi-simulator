@@ -1,7 +1,13 @@
 package enviroment;
 
 import codegenerator.Program;
-import gui.*;
+import core.Constants;
+import core.MachineEventListener;
+import core.HeadlessMachineEventListener;
+import gui.HighlightedJPane;
+import gui.LabelWindow;
+import gui.RegisterViewType;
+import gui.Window;
 import interpreter.Interpreter;
 import simulator.Command;
 
@@ -68,7 +74,12 @@ public class Enviroment {
      */
     private static Command next;
 
-    private static LabelWindow label_window = new LabelWindow();
+    private static LabelWindow label_window = null;
+
+    /**
+     * Event listener for machine events (GUI updates, error handling)
+     */
+    private static MachineEventListener eventListener = new HeadlessMachineEventListener();
 
     /**
      * Addiert value auf den Befehlszaehler
@@ -76,7 +87,7 @@ public class Enviroment {
      * @param value Wert der addiert wird
      */
     public static void addToPC(int value) {
-        Register pcRegister = REGISTERS.getRegister(CONSTANTS.PC_REGISTER);
+        Register pcRegister = REGISTERS.getRegister(Constants.PC_REGISTER);
         pcRegister.setContentAsNumber(pcRegister.getContentAsNumber(4) + value);
     }
 
@@ -111,7 +122,7 @@ public class Enviroment {
      * @return Befehlszzaehler
      */
     public static int getPC() {
-        return REGISTERS.getRegister(CONSTANTS.PC_REGISTER).getContentAsNumber(4);
+        return REGISTERS.getRegister(Constants.PC_REGISTER).getContentAsNumber(4);
     }
 
     /**
@@ -121,7 +132,7 @@ public class Enviroment {
      */
     public static int getPCFromMemory() {
         return NumberConversion.myBytetoIntWithoutSign(MEMORY.getContent(
-                REGISTERS.getRegister(CONSTANTS.PC_REGISTER).getContentAsNumber(4), 1));
+                REGISTERS.getRegister(Constants.PC_REGISTER).getContentAsNumber(4), 1));
     }
 
     /**
@@ -154,6 +165,24 @@ public class Enviroment {
     }
 
     /**
+     * Sets the event listener for machine events
+     *
+     * @param listener The event listener
+     */
+    public static void setEventListener(MachineEventListener listener) {
+        eventListener = listener != null ? listener : new HeadlessMachineEventListener();
+    }
+
+    /**
+     * Gets the current event listener
+     *
+     * @return The current event listener
+     */
+    public static MachineEventListener getEventListener() {
+        return eventListener;
+    }
+
+    /**
      * Liest den naechsten Befehl im Speicher
      *
      * @return naechster Befehl im Speicher
@@ -166,19 +195,18 @@ public class Enviroment {
         MyByte[] bef2 = nex2 != null ? nex2.getOpCode() : new MyByte[]{};
 
         if (bef1.length != bef2.length) {
-            Enviroment.frame.setErrorText(CONSTANTS.ERROR_MANIPULATION_MEMORY);
+            eventListener.onMemoryManipulation();
 
         } else {
             for (int i = 0; i < bef1.length; i++) {
                 if (bef1[i].getContent() != bef2[i].getContent()) {
-                    Enviroment.frame.setErrorText(
-                            CONSTANTS.ERROR_MANIPULATION_MEMORY);
+                    eventListener.onMemoryManipulation();
                 }
             }
 
         }
         if (next != null) {
-            REGISTERS.getRegister(CONSTANTS.PC_REGISTER)
+            REGISTERS.getRegister(Constants.PC_REGISTER)
                     .setContent(NumberConversion.intToByte(next.getAdress(), 4));
         }
         return next;
@@ -234,6 +262,9 @@ public class Enviroment {
     }
 
     public static LabelWindow getLabelWindow() {
+        if (label_window == null && !java.awt.GraphicsEnvironment.isHeadless()) {
+            label_window = new LabelWindow();
+        }
         return label_window;
     }
 }

@@ -7,7 +7,7 @@ import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
 import enviroment.Register;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * POPR-Befehl
@@ -53,7 +53,7 @@ public class Popr extends Command {
     @Override
     public synchronized void run() {
         super.run();
-        Register sp = Enviroment.REGISTERS.getRegister(CONSTANTS.SP_REGISTER);
+        Register sp = Enviroment.REGISTERS.getRegister(Constants.SP_REGISTER);
         for (int i = 0; i < 15; i++) {
             Register reg = Enviroment.REGISTERS.getRegister(i);
             AbsAddress ort = new AbsAddress(

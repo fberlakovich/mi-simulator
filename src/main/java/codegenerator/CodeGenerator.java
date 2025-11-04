@@ -4,6 +4,7 @@
 package codegenerator;
 
 import enviroment.Enviroment;
+import gui.LabelWindow;
 import parser.Parser;
 import simulator.Command;
 
@@ -181,9 +182,12 @@ public class CodeGenerator {
         aktAddress(0, 0);
 
         // Anzeige einer Tabelle mit Labeln und den zugehörigen Adressen
-        Enviroment.getLabelWindow().setContent(defindedLabel);
-        Enviroment.getLabelWindow().setVisible(Enviroment.label_Window);
-        Enviroment.getLabelWindow().pack();
+        LabelWindow labelWindow = Enviroment.getLabelWindow();
+        if (labelWindow != null) {
+            labelWindow.setContent(defindedLabel);
+            labelWindow.setVisible(Enviroment.label_Window);
+            labelWindow.pack();
+        }
     }
 
     public ArrayList<Label> getLabels() {

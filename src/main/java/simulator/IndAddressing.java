@@ -7,7 +7,7 @@ import enviroment.Enviroment;
 import enviroment.MyByte;
 import enviroment.NumberConversion;
 import enviroment.Register;
-import gui.CONSTANTS;
+import core.Constants;
 
 /**
  * Operandenspezifikation für Indirekte Adressierung
@@ -103,7 +103,7 @@ public class IndAddressing implements Operand, AdressGetter {
      */
     @Override
     public int getAdress() {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
             return NumberConversion.myBytetoIntWithSign(new AbsAddress(index != null ?
                     address +
@@ -144,7 +144,7 @@ public class IndAddressing implements Operand, AdressGetter {
      */
     @Override
     public MyByte[] getContent() {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
 
             return new AbsAddress(NumberConversion.myBytetoIntWithoutSign(
@@ -238,7 +238,7 @@ public class IndAddressing implements Operand, AdressGetter {
      */
     @Override
     public void setContent(MyByte[] content, int length) {
-        if (nr1 == CONSTANTS.PC_REGISTER) {
+        if (nr1 == Constants.PC_REGISTER) {
             Register index = nr2 != -1 ? Enviroment.REGISTERS.getRegister(nr2) : null;
 
             AbsAddress ort = new AbsAddress(NumberConversion.myBytetoIntWithoutSign(
