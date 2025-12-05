@@ -93,3 +93,6 @@ gradle-app.setting
 # gradle/wrapper/gradle-wrapper.properties
 
 .idea
+/CLAUDE.md
+/.claude/
+/.oca/

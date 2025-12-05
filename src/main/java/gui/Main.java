@@ -1,7 +1,5 @@
 package gui;
 
-import enviroment.Enviroment;
-
 import javax.swing.*;
 
 /**
@@ -21,7 +19,7 @@ public class Main {
                 Window inst = new Window();
                 inst.setVisible(true);
                 inst.resetSize();
-                Enviroment.setJFrame(inst);
+                GuiState.setFrame(inst);
                 inst.setLocationRelativeTo(null);
 
             }

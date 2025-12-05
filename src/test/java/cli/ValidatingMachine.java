@@ -1,28 +1,31 @@
 package cli;
 
-import simulator.Command;
+import engine.ProgramRunner;
+import engine.commands.Command;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 
-class ValidatingMachine implements IMachine {
+/**
+ * Test wrapper that validates execution output against expected reference output.
+ * Used for integration testing.
+ */
+class ValidatingMachine {
 
     private final ByteArrayOutputStream result = new ByteArrayOutputStream();
-    private final IMachine inner;
+    private final PrintingMachine inner;
     private String[] referenceLines;
     private int referenceIndex = 0;
 
-    ValidatingMachine(IMachine inner, String referenceLines) {
-        this.inner = new PrintingMachine(inner, new PrintStream(result), false);
+    ValidatingMachine(ProgramRunner runner, String referenceLines) {
+        this.inner = new PrintingMachine(runner, new PrintStream(result), false);
         this.referenceLines = referenceLines.split(System.lineSeparator(), -1);
     }
 
-    @Override
     public boolean hasHalted() {
         return inner.hasHalted();
     }
 
-    @Override
     public Command executeNext() {
         result.reset();
         Command command = inner.executeNext();

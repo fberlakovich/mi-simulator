@@ -1,6 +1,6 @@
 package gui;
 
-import enviroment.Enviroment;
+import engine.Machine;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -170,13 +170,13 @@ public class NumberedPane extends JPanel {
                     public void mouseClicked(MouseEvent arg0) {
                         if (arg0.getClickCount() == 2) {
 
-                            if (Enviroment.compiled) {
+                            if (Machine.getInstance().isCompiled()) {
                                 LineNumberLabel inp = (LineNumberLabel) arg0.getSource();
                                 inp.setStatus(!inp.getStatus());
 
                             } else {
                                 JOptionPane.showMessageDialog(
-                                        Enviroment.frame,
+                                        GuiState.getFrame(),
                                         CONSTANTS.ERROR_SETBREAKPOINT_NOT_ASSEMBLED,
                                         CONSTANTS.ERROR_SETBREAKPOINT_TITEL,
                                         JOptionPane.ERROR_MESSAGE);

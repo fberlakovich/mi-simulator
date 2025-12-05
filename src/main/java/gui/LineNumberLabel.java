@@ -4,7 +4,7 @@
 package gui;
 
 import Exceptions.NoCommandException;
-import enviroment.Enviroment;
+import engine.Machine;
 
 import javax.swing.*;
 
@@ -67,11 +67,11 @@ public class LineNumberLabel extends JLabel {
     public void setStatus(boolean status) {
         this.status = status;
         try {
-            Enviroment.getProgram().setBreakPoint(Integer.parseInt(getText()), status);
+            Machine.getInstance().getProgram().setBreakPoint(Integer.parseInt(getText()), status);
             setText(getText());
             setIcon(status ? icon1 : icon2);
         } catch (NoCommandException e) {
-            JOptionPane.showMessageDialog(Enviroment.frame,
+            JOptionPane.showMessageDialog(GuiState.getFrame(),
                     CONSTANTS.ERROR_SETBREAKPOINT_NOT_EXECUTABLE_INSTR,
                     CONSTANTS.ERROR_SETBREAKPOINT_TITEL,
                     JOptionPane.ERROR_MESSAGE);

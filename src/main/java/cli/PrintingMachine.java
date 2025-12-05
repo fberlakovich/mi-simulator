@@ -1,49 +1,66 @@
 package cli;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
-import enviroment.Register;
-import gui.CONSTANTS;
-import simulator.Command;
+import engine.Machine;
+import engine.ProgramRunner;
+import engine.util.MemoryChangeTracker;
+import engine.state.Register;
+import static engine.MachineConstants.REGISTER_COUNT;
+import engine.commands.Command;
 
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-class PrintingMachine implements IMachine {
-    private final IMachine inner;
+/**
+ * Decorator that prints machine state changes after each instruction execution.
+ * Works directly with ProgramRunner.
+ */
+class PrintingMachine {
+    private final ProgramRunner runner;
     private final PrintStream out;
-
     private final boolean printHex;
 
-    private final int[] previousRegValues = new int[CONSTANTS.NUMBER_OF_REGISTER];
-    private final Map<Integer, MyByte> previousMemValues = new HashMap<>();
+    private final int[] previousRegValues = new int[REGISTER_COUNT];
+    private final Map<Integer, Byte> previousMemValues = new HashMap<>();
     private final Map<String, Boolean> previousFlags = new HashMap<>();
+    private final MemoryChangeTracker memoryTracker;
     private boolean initialized;
+    private boolean halted;
 
-    PrintingMachine(IMachine inner, PrintStream out, boolean printHex) {
-        this.inner = inner;
+    PrintingMachine(ProgramRunner runner, PrintStream out, boolean printHex) {
+        this.runner = runner;
         this.out = out;
         this.printHex = printHex;
+        this.memoryTracker = new MemoryChangeTracker();
     }
 
-    @Override
     public boolean hasHalted() {
-        return inner.hasHalted();
+        return halted;
     }
 
-    @Override
     public Command executeNext() {
-        if (!initialized) {
-            Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
-            for (Integer address : changes.keySet()) {
-                previousMemValues.put(address, changes.get(address));
-            }
-            fillCurrentFlags(previousFlags);
+        if (halted) {
+            return null;
         }
 
-        Command command = inner.executeNext();
-        out.println("INS: " + command);
+        if (!initialized) {
+            Set<Integer> changedAddresses = memoryTracker.getChangedAddresses();
+            for (Integer address : changedAddresses) {
+                previousMemValues.put(address, Machine.getInstance().getMemory().readByte(address));
+            }
+            fillCurrentFlags(previousFlags);
+            initialized = true;
+        }
+
+        boolean hasMore = runner.step();
+        Command executed = runner.getLastExecuted();
+
+        if (!hasMore) {
+            halted = true;
+        }
+
+        out.println("INS: " + executed);
         printRegisterValues(previousRegValues);
         out.println();
         printFlags(previousFlags);
@@ -51,14 +68,14 @@ class PrintingMachine implements IMachine {
         printMemoryValues(previousMemValues);
         out.println();
         out.println();
-        return command;
+        return executed;
     }
 
     private static void fillCurrentFlags(Map<String, Boolean> flags) {
-        flags.put("C", Enviroment.flags.isCarry());
-        flags.put("N", Enviroment.flags.isNegative());
-        flags.put("V", Enviroment.flags.isOverflow());
-        flags.put("Z", Enviroment.flags.isZero());
+        flags.put("C", Machine.getInstance().getFlags().isCarry());
+        flags.put("N", Machine.getInstance().getFlags().isNegative());
+        flags.put("V", Machine.getInstance().getFlags().isOverflow());
+        flags.put("Z", Machine.getInstance().getFlags().isZero());
     }
 
     static class Separator {
@@ -106,18 +123,23 @@ class PrintingMachine implements IMachine {
     }
 
 
-    private void printMemoryValues(Map<Integer, MyByte> previousMemValues) {
-        Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
+    private void printMemoryValues(Map<Integer, Byte> previousMemValues) {
+        Set<Integer> changedAddresses = memoryTracker.getChangedAddresses();
         Separator separator = new Separator(out);
 
-        for (Integer address : changes.keySet()) {
-            int currentValue = changes.get(address).getContent();
-            int previousValue = previousMemValues.containsKey(address) ? previousMemValues.get(address).getContent() : 0;
+        // Sort addresses for consistent output
+        java.util.List<Integer> sortedAddresses = new java.util.ArrayList<>(changedAddresses);
+        java.util.Collections.sort(sortedAddresses);
+
+        for (Integer address : sortedAddresses) {
+            byte currentByte = Machine.getInstance().getMemory().readByte(address);
+            int currentValue = currentByte & 0xFF;
+            int previousValue = previousMemValues.containsKey(address) ? (previousMemValues.get(address) & 0xFF) : 0;
 
             if (previousValue == 0 && currentValue == 0)
                 continue;
 
-            previousMemValues.put(address, changes.get(address));
+            previousMemValues.put(address, currentByte);
             if (previousValue != currentValue) {
                 String format;
                 if (!printHex) {
@@ -141,8 +163,8 @@ class PrintingMachine implements IMachine {
 
     private void printRegisterValues(int[] previousRegValues) {
         Separator separator = new Separator(out);
-        for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            Register register = Enviroment.REGISTERS.getRegister(i);
+        for (int i = 0; i < REGISTER_COUNT; i++) {
+            Register register = Machine.getInstance().getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             if (previousRegValues[i] == regValue && regValue == 0)
                 continue;
@@ -164,7 +186,6 @@ class PrintingMachine implements IMachine {
                 separator.printColumn(String.format(format, i, regValue));
             }
             previousRegValues[i] = regValue;
-            register.reset();
         }
     }
 

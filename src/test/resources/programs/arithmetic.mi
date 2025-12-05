@@ -1,0 +1,9 @@
+          SEG
+          MOVE W I 10, R0
+          MOVE W I 3, R1
+          ADD W R0, R1, R2
+          SUB W R0, R1, R3
+          MULT W R0, R1, R4
+          DIV W R0, R1, R5
+          HALT
+          END

@@ -1,11 +1,10 @@
 package gui;
 
-import enviroment.Enviroment;
-import enviroment.NumberConversion;
-import scanner.Scanner;
-import scanner.Token;
-import simulator.Command;
-import simulator.DD;
+import engine.Machine;
+import engine.scanner.Scanner;
+import engine.scanner.Token;
+import engine.commands.Command;
+import engine.commands.DD;
 
 import javax.swing.*;
 import javax.swing.event.UndoableEditEvent;
@@ -151,7 +150,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
      * Diese Methode färbt alle erkannten Token im im ganzen Text
      */
     public void doHighLighting() {
-        if (Enviroment.shl) {
+        if (GuiState.isSyntaxHighlighting()) {
             Token ret;
             Scanner scan = new Scanner(true);
             scan.init(getText());
@@ -243,7 +242,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
      */
     public void highlight(int beg, int end, boolean diff_opcode) {
         setCharacterAttributes(getStyledDocument(), highl_beg_old, highl_end_old,
-                Enviroment.shl ? keyWord : norm);
+                GuiState.isSyntaxHighlighting() ? keyWord : norm);
         highl_beg_old = beg;
         highl_end_old = end;
         setCharacterAttributes(getStyledDocument(), beg, end,
@@ -254,13 +253,13 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
      * Highlighted den nächsten Befehl
      */
     public void highlightNextCommand() {
-        if (Enviroment.getNextCommand() != null) {
-            Command next = Enviroment.getCommandperAddress(
-                    Enviroment.getNextCommand().getAdress());
+        if (Machine.getInstance().getNextCommand() != null) {
+            Command next = Machine.getInstance().getCommandAtAddress(
+                    Machine.getInstance().getNextCommand().getAdress());
             if (next != null) {
-                if (NumberConversion.myByteEqual(next.getOpCode(),
-                        Enviroment.getNextCommand()
-                                .getOpCode())
+                if (java.util.Arrays.equals(next.encode(),
+                        Machine.getInstance().getNextCommand()
+                                .encode())
                         && !(next instanceof DD)) {
                     highlight(next.getBeg(), next.getEnd() - next.getBeg(),
                             false);
@@ -301,7 +300,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
             if (compiled) {
                 compiled = false;
                 setBackground(new Color(255, 255, 255));
-                Enviroment.frame.textChanged();
+                GuiState.getFrame().textChanged();
             }
             doHighLighting();
             oldText = getText();
@@ -379,7 +378,9 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
     public void setText(String text) {
         super.setText(text);
         setCompiled(false);
-        Enviroment.frame.textChanged();
+        if (GuiState.getFrame() != null) {
+            GuiState.getFrame().textChanged();
+        }
         doHighLighting();
     }
 

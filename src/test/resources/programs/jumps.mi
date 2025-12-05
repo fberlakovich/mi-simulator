@@ -1,0 +1,16 @@
+          SEG
+          MOVE W I 5, R0
+          MOVE W I 5, R1
+          CMP W R0, R1
+          JEQ equal
+          MOVE W I 0, R2
+          JUMP done
+equal:    MOVE W I 1, R2
+done:     MOVE W I 10, R3
+          CMP W R3, R0
+          JGT greater
+          MOVE W I 0, R4
+          JUMP end
+greater:  MOVE W I 1, R4
+end:      HALT
+          END

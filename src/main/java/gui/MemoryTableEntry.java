@@ -3,11 +3,9 @@
  */
 package gui;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
+import engine.util.MemoryChangeTracker;
+import engine.state.MyByte;
 
-import java.util.Map;
-import java.util.HashMap;
 import java.util.ArrayList;
 
 /**
@@ -55,10 +53,16 @@ public class MemoryTableEntry {
         boolean html = false;
         StringBuffer ret2 = new StringBuffer(adr + " ");
         int address = Integer.parseInt(this.adr, 16);
-        Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
+
+        // Get memory tracker from Window if available
+        MemoryChangeTracker tracker = null;
+        if (GuiState.getFrame() != null) {
+            tracker = GuiState.getFrame().getMemoryTracker();
+        }
 
         for (MyByte in : data) {
-            if (changes.containsKey(address)) {
+            boolean changed = tracker != null && tracker.isChanged(address);
+            if (changed) {
                 ret2.append(
                         "<font color=\"#ff0000\">" + in.toString() + " </font>");
                 html = true;

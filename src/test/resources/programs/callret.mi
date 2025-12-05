@@ -1,0 +1,9 @@
+          SEG
+          MOVE W I 1000, R14
+          MOVE W I 5, R0
+          CALL func
+          ADD W I 100, R0
+          HALT
+func:     MULT W I 2, R0
+          RET
+          END

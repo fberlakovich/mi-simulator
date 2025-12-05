@@ -1,101 +1,387 @@
 package cli;
 
+import engine.events.ExecutionEvent;
+import engine.events.MachineEvent;
+import engine.events.MachineEventListener;
+import engine.events.MemoryAccessErrorEvent;
+import engine.ProgramRunner;
+import engine.Machine;
+import engine.state.Register;
+import engine.util.MemoryChangeTracker;
+
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import gui.CONSTANTS;
+import static engine.MachineConstants.REGISTER_COUNT;
+import static engine.Version.VERSION;
 
+/**
+ * CLI entry point for the MI simulator.
+ */
 public class Main {
-    public static void usage(int code) {
-            System.err.println("usage:");
-            System.err.println("        cli -help");
-            System.err.println("        cli -version");
-            System.err.println("        cli <path to MI program> [-hex] [-quiet]");
-            System.err.println("        cli <path to MI program> [state file] [-hex] [-quiet]");
-            System.exit(code);
+
+    private static void usage(int code) {
+        System.err.println("MI Simulator CLI v" + VERSION);
+        System.err.println();
+        System.err.println("Usage:");
+        System.err.println("  cli -help              Show this help message");
+        System.err.println("  cli -version           Show version information");
+        System.err.println("  cli <program> [options]");
+        System.err.println();
+        System.err.println("Options:");
+        System.err.println("  -state <file>          Load initial state from file");
+        System.err.println("  -hex                   Use hexadecimal output format");
+        System.err.println("  -quiet                 Only show final register state");
+        System.err.println();
+        System.err.println("Examples:");
+        System.err.println("  cli program.mi");
+        System.err.println("  cli program.mi -hex");
+        System.err.println("  cli program.mi -state init.state -quiet");
+        System.exit(code);
     }
 
     public static void main(String[] args) {
-        // The below code is a poor man's commandline parser.
-        // It's not sophisticated, but recognizes the above input format.
-        if (args.length < 1) {
-            Main.usage(1);
-        }
-        if (args[0].equals("-help")) {
-            Main.usage(0);
-        }
-        if (args[0].equals("-version")) {
-            System.out.println(CONSTANTS.VERSION);
-            System.exit(0);
+        CommandLineArgs parsedArgs = parseArgs(args);
+        if (parsedArgs == null) {
+            return;
         }
 
-        // load the program text
-        String programText = null;
+        // Set up error handler via event bus
+        CliErrorHandler errorHandler = new CliErrorHandler();
+        Machine.getInstance().getEventBus().subscribe(MemoryAccessErrorEvent.class, errorHandler);
+
         try {
-            programText = new String(Files.readAllBytes(new File(args[0]).toPath()));
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+            // Load program
+            String programText = readFile(parsedArgs.programFile);
+            if (programText == null) {
+                System.exit(1);
+            }
 
-        // load and assemble the program
-        boolean loaded = MachineUtils.assembleAndLoad(programText);
-        if (!loaded) {
-            System.exit(1);
-        }
+            // Assemble and load
+            if (!MachineUtils.assembleAndLoad(programText)) {
+                System.exit(1);
+            }
 
-        // load the state file if any
-        // load the additional options, if any
-        boolean useHex = false;
-        boolean quiet = false;
-
-        if (args.length > 1) {
-            String stateText = null;
-            if (args[1].equals("-hex")) {
-                useHex = true;
-            } else if (args[1].equals("-quiet")) {
-                quiet = true;
-            } else {  // the second argument is a state file
-                try {
-                    stateText = new String(Files.readAllBytes(new File(args[1]).toPath()));
-                } catch (IOException e) {
-                    e.printStackTrace();
+            // Load state file if provided
+            if (parsedArgs.stateFile != null) {
+                String stateText = readFile(parsedArgs.stateFile);
+                if (stateText == null) {
                     System.exit(1);
                 }
-                MachineUtils.loadState(stateText, useHex);
+                try {
+                    MachineUtils.loadState(stateText, parsedArgs.useHex);
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Error in state file: " + e.getMessage());
+                    System.exit(1);
+                }
+            }
+
+            // Run the machine using ExecutionController + events
+            runWithExecutionController(parsedArgs.useHex, parsedArgs.quiet);
+
+            // Report any errors that occurred during execution
+            if (errorHandler.hasErrors()) {
+                System.err.println();
+                System.err.println("Execution completed with " + errorHandler.getErrorCount() + " error(s)");
+            }
+
+            System.exit(errorHandler.hasErrors() ? 1 : 0);
+        } finally {
+            Machine.getInstance().getEventBus().unsubscribe(MemoryAccessErrorEvent.class, errorHandler);
+        }
+    }
+
+    private static CommandLineArgs parseArgs(String[] args) {
+        if (args.length < 1) {
+            usage(1);
+            return null;
+        }
+
+        if (args[0].equals("-help") || args[0].equals("--help")) {
+            usage(0);
+            return null;
+        }
+
+        if (args[0].equals("-version") || args[0].equals("--version")) {
+            System.out.println("MI Simulator v" + VERSION);
+            System.exit(0);
+            return null;
+        }
+
+        CommandLineArgs result = new CommandLineArgs();
+        result.programFile = args[0];
+
+        // Check program file exists
+        if (!new File(result.programFile).exists()) {
+            System.err.println("Error: Program file not found: " + result.programFile);
+            System.exit(1);
+            return null;
+        }
+
+        // Parse remaining arguments
+        for (int i = 1; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "-hex":
+                case "--hex":
+                    result.useHex = true;
+                    break;
+                case "-quiet":
+                case "--quiet":
+                    result.quiet = true;
+                    break;
+                case "-state":
+                case "--state":
+                    if (i + 1 >= args.length) {
+                        System.err.println("Error: -state requires a file argument");
+                        System.exit(1);
+                        return null;
+                    }
+                    result.stateFile = args[++i];
+                    if (!new File(result.stateFile).exists()) {
+                        System.err.println("Error: State file not found: " + result.stateFile);
+                        System.exit(1);
+                        return null;
+                    }
+                    break;
+                default:
+                    // Legacy support: bare argument after program is state file
+                    if (!arg.startsWith("-") && result.stateFile == null) {
+                        result.stateFile = arg;
+                        if (!new File(result.stateFile).exists()) {
+                            System.err.println("Error: State file not found: " + result.stateFile);
+                            System.exit(1);
+                            return null;
+                        }
+                    } else {
+                        System.err.println("Error: Unknown option: " + arg);
+                        usage(1);
+                        return null;
+                    }
             }
         }
 
-        for (int i = 2; i < 4; i++) {
-            if (args.length > i) {
-                if (args[i].equals("-hex"))
-                    useHex = true;
-                if (args[i].equals("-quiet"))
-                    quiet = true;
+        return result;
+    }
+
+    private static String readFile(String path) {
+        try {
+            return Files.readString(new File(path).toPath());
+        } catch (IOException e) {
+            System.err.println("Error reading file '" + path + "': " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static void runWithExecutionController(boolean useHex, boolean quiet) {
+        PrintStream out = System.out;
+        CliOutputHandler outputHandler = new CliOutputHandler(out, useHex, quiet);
+
+        // Subscribe to execution events (STEP_COMPLETED contains the executed command)
+        Machine.getInstance().getEventBus().subscribe(ExecutionEvent.class, outputHandler);
+
+        try {
+            // Use ProgramRunner with step() for synchronous execution
+            ProgramRunner runner = Machine.getInstance().createRunner();
+            while (runner.step()) {
+                // step() returns false when program ends
             }
+        } finally {
+            Machine.getInstance().getEventBus().unsubscribe(ExecutionEvent.class, outputHandler);
         }
 
+        // For quiet mode, print final register state
         if (quiet) {
-            runQuietMachine(useHex);
-        } else {
-            runPrintingMachine(useHex);
-        }
-        System.exit(0);
-    }
-
-    private static void runPrintingMachine(boolean useHex) {
-        PrintingMachine machine = new PrintingMachine(new MIMachine(), System.out, useHex);
-        while (!machine.hasHalted()) {
-            machine.executeNext();
+            outputHandler.printFinalRegisterState();
         }
     }
 
-    private static void runQuietMachine(boolean useHex) {
-        QuietMachine machine = new QuietMachine(new MIMachine(), System.out, useHex);
-        while (!machine.hasHalted()) {
-            machine.executeNext();
+    private static class CommandLineArgs {
+        String programFile;
+        String stateFile;
+        boolean useHex;
+        boolean quiet;
+    }
+
+    /**
+     * Event listener for command execution to produce output.
+     * Replicates PrintingMachine output format using event-driven approach.
+     */
+    private static class CliOutputHandler implements MachineEventListener {
+        private final PrintStream out;
+        private final boolean printHex;
+        private final boolean quiet;
+        private final int[] previousRegValues = new int[REGISTER_COUNT];
+        private final Map<Integer, Byte> previousMemValues = new HashMap<>();
+        private final Map<String, Boolean> previousFlags = new HashMap<>();
+        private final MemoryChangeTracker memoryTracker;
+        private boolean initialized;
+
+        CliOutputHandler(PrintStream out, boolean printHex, boolean quiet) {
+            this.out = out;
+            this.printHex = printHex;
+            this.quiet = quiet;
+            this.memoryTracker = new MemoryChangeTracker();
         }
-        machine.printRegisterState();
+
+        @Override
+        public void onEvent(MachineEvent event) {
+            if (quiet) {
+                return; // In quiet mode, don't print per-command output
+            }
+            if (event instanceof ExecutionEvent) {
+                ExecutionEvent ee = (ExecutionEvent) event;
+                // Only handle STEP_COMPLETED events (avoid double-printing for PROGRAM_ENDED)
+                if (ee.getType() != ExecutionEvent.Type.STEP_COMPLETED) {
+                    return;
+                }
+
+                if (!initialized) {
+                    // Capture initial state
+                    for (Integer address : memoryTracker.getChangedAddresses()) {
+                        previousMemValues.put(address, Machine.getInstance().getMemory().readByte(address));
+                    }
+                    fillCurrentFlags(previousFlags);
+                    initialized = true;
+                }
+
+                out.println("INS: " + ee.getCommand());
+                printRegisterValues();
+                out.println();
+                printFlags();
+                out.println();
+                printMemoryValues();
+                out.println();
+                out.println();
+            }
+        }
+
+        private void fillCurrentFlags(Map<String, Boolean> flags) {
+            flags.put("C", Machine.getInstance().getFlags().isCarry());
+            flags.put("N", Machine.getInstance().getFlags().isNegative());
+            flags.put("V", Machine.getInstance().getFlags().isOverflow());
+            flags.put("Z", Machine.getInstance().getFlags().isZero());
+        }
+
+        private void printRegisterValues() {
+            Separator separator = new Separator(out);
+            for (int i = 0; i < REGISTER_COUNT; i++) {
+                Register register = Machine.getInstance().getRegisters().getRegister(i);
+                int regValue = register.getContentAsNumber(4);
+                if (previousRegValues[i] == regValue && regValue == 0)
+                    continue;
+                if (previousRegValues[i] != regValue) {
+                    String format = printHex ? "R%s: %02X -> %02X" : "R%s: %d -> %d";
+                    separator.printColumn(String.format(format, i, previousRegValues[i], regValue));
+                } else {
+                    String format = printHex ? "R%s: %02X" : "R%s: %d";
+                    separator.printColumn(String.format(format, i, regValue));
+                }
+                previousRegValues[i] = regValue;
+            }
+        }
+
+        private void printFlags() {
+            Map<String, Boolean> flags = new HashMap<>();
+            fillCurrentFlags(flags);
+            Separator separator = new Separator(out);
+            for (String flag : flags.keySet()) {
+                if (flags.get(flag) != previousFlags.get(flag)) {
+                    String format = printHex ? "%s: %02X -> %02X" : "%s: %d -> %d";
+                    separator.printColumn(String.format(format, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
+                } else {
+                    String format = printHex ? "%s: %02X" : "%s: %d";
+                    separator.printColumn(String.format(format, flag, asBit(flags.get(flag))));
+                }
+            }
+            fillCurrentFlags(previousFlags);
+        }
+
+        private void printMemoryValues() {
+            java.util.List<Integer> sortedAddresses = new ArrayList<>(memoryTracker.getChangedAddresses());
+            Collections.sort(sortedAddresses);
+            Separator separator = new Separator(out);
+
+            for (Integer address : sortedAddresses) {
+                byte currentByte = Machine.getInstance().getMemory().readByte(address);
+                int currentValue = currentByte & 0xFF;
+                int previousValue = previousMemValues.containsKey(address) ? (previousMemValues.get(address) & 0xFF) : 0;
+
+                if (previousValue == 0 && currentValue == 0)
+                    continue;
+
+                previousMemValues.put(address, currentByte);
+                if (previousValue != currentValue) {
+                    String format = printHex ? "%02X: %02X -> %02X" : "%d: %d -> %d";
+                    separator.printColumn(String.format(format, address, previousValue, currentValue));
+                } else {
+                    String format = printHex ? "%02X: %02X" : "%d: %d";
+                    separator.printColumn(String.format(format, address, currentValue));
+                }
+            }
+        }
+
+        void printFinalRegisterState() {
+            String format = printHex ? "R%s: 0x%X" : "R%s: %d";
+            for (int i = 0; i < REGISTER_COUNT; i++) {
+                Register register = Machine.getInstance().getRegisters().getRegister(i);
+                int regValue = register.getContentAsNumber(4);
+                out.println(String.format(format, i, regValue));
+            }
+        }
+
+        private static int asBit(boolean value) {
+            return value ? 1 : 0;
+        }
+
+        static class Separator {
+            private boolean first = true;
+            private final PrintStream out;
+
+            Separator(PrintStream out) {
+                this.out = out;
+            }
+
+            void printColumn(String column) {
+                if (!first) {
+                    out.print("; ");
+                }
+                out.print(column);
+                first = false;
+            }
+        }
+    }
+
+    /**
+     * Event listener for memory access errors during CLI execution.
+     */
+    private static class CliErrorHandler implements MachineEventListener {
+        private final List<String> errors = new ArrayList<>();
+
+        @Override
+        public void onEvent(MachineEvent event) {
+            if (event instanceof MemoryAccessErrorEvent) {
+                MemoryAccessErrorEvent mae = (MemoryAccessErrorEvent) event;
+                String errorMsg = String.format("Memory error at address 0x%X: %s",
+                        mae.getAddress(), mae.getType());
+                errors.add(errorMsg);
+                System.err.println(errorMsg);
+            }
+        }
+
+        boolean hasErrors() {
+            return !errors.isEmpty();
+        }
+
+        int getErrorCount() {
+            return errors.size();
+        }
     }
 }

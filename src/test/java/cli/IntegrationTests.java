@@ -1,5 +1,7 @@
 package cli;
 
+import engine.Machine;
+import engine.ProgramRunner;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -21,7 +23,7 @@ import static org.junit.Assert.assertEquals;
 @RunWith(Parameterized.class)
 public class IntegrationTests {
 
-    private IMachine sut;
+    private PrintingMachine sut;
     private ByteArrayOutputStream result;
     private final String testName;
 
@@ -32,7 +34,8 @@ public class IntegrationTests {
     @Before
     public void setup() {
         result = new ByteArrayOutputStream();
-        sut = new PrintingMachine(new MIMachine(), new PrintStream(result), false);
+        // Note: PrintingMachine is created in test() after assembleAndLoad to ensure
+        // MemoryChangeTracker subscribes to the correct Machine instance
     }
 
     @Override
@@ -63,6 +66,10 @@ public class IntegrationTests {
         Path programFile = Paths.get(classLoader.getResource(programs.resolve(testName + ".mi").toString()).toURI());
         String programText = new String(Files.readAllBytes(programFile));
         MachineUtils.assembleAndLoad(programText);
+        // Create PrintingMachine AFTER assembleAndLoad to ensure MemoryChangeTracker
+        // subscribes to the correct (new) Machine instance
+        ProgramRunner runner = Machine.getInstance().createRunner();
+        sut = new PrintingMachine(runner, new PrintStream(result), false);
         Path expectedFile = Paths.get(classLoader.getResource(programs.resolve(testName + ".expected").toString()).toURI());
         String expectedState = new String(Files.readAllBytes(expectedFile));
         while (!sut.hasHalted()) {

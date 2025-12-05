@@ -1,0 +1,16 @@
+          SEG
+
+          MOVE B I 127, R0
+          CONV R0, R1
+
+          MOVE B I -1, R2
+          CONV R2, R3
+
+          MOVE B I -128, R4
+          CONV R4, R5
+
+          MOVE W I 0, R6
+          CONV R6, R7
+
+          HALT
+          END

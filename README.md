@@ -100,9 +100,7 @@ bei einem Programmdurchlauf direkt als Zustandsdatei verwendet werden.
 
 ### Bekannte Probleme des CLI Modus ###
 
-* Aktuell werden auch im CLI Modus Java GUI Threads im Hintergrund gestartet (z.B. `AWT-Eventqueue`).
-  Dies liegt daran, dass die Logik und die Darstellungskomponenten des MI-Simulators noch nicht ausreichend entkoppelt
-  sind.
+* ~~Aktuell werden auch im CLI Modus Java GUI Threads im Hintergrund gestartet (z.B. `AWT-Eventqueue`).~~ **BEHOBEN** - Die Kernlogik ist nun vollständig von GUI-Komponenten entkoppelt.
 * Theoretisch ist die Programmdatei überflüssig, wenn eine Zustandsdatei angegeben wird.
   Der Zustand enthält bereits das kodierte Programm.
   Allerdings unterstützt die Programmlogik des MI-Simulators aktuell noch keine Ausführung ohne ein Programm in
@@ -110,3 +108,143 @@ bei einem Programmdurchlauf direkt als Zustandsdatei verwendet werden.
 
 ## Bekannte Probleme ##
 * Unter Linux kann es mit bestimmten Window Managern zu dem Problem kommen, dass das MI-Simulator Fenster leer ist bzw. kein Inhalt angezeigt wird. In diesem Fall kann es helfen den Simulator mit `export _JAVA_AWT_WM_NONREPARENTING=1` zu starten.
+
+---
+
+## Architecture / Architektur ##
+
+The simulator is organized into a **core library** (no GUI dependencies) and **frontends** (GUI and CLI).
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            FRONTENDS                                        │
+├──────────────────────────────────┬──────────────────────────────────────────┤
+│            gui/                  │               cli/                       │
+│  ┌──────────────────────────┐    │    ┌──────────────────────────────────┐  │
+│  │     Window.java          │    │    │     Main.java                    │  │
+│  │  (Main application)      │    │    │  (CLI entry point)               │  │
+│  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
+│  │     GuiState.java        │    │    │     MIMachine.java               │  │
+│  │  (GUI-specific state)    │    │    │  (Execution wrapper)             │  │
+│  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
+│  │     MemoryView.java      │    │    │     PrintingMachine.java         │  │
+│  │  (Memory visualization)  │    │    │  (Output decorator)              │  │
+│  └──────────────────────────┘    │    └──────────────────────────────────┘  │
+└──────────────────────────────────┴──────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     CORE LIBRARY (No GUI Dependencies)                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐  │
+│  │   scanner   │ -> │   parser    │ -> │ program│ -> │ interpreter│  │
+│  │  (Lexer)    │    │  (Parser)   │    │ (Label res.) │    │ (Decoder)  │  │
+│  └─────────────┘    └─────────────┘    └──────────────┘    └────────────┘  │
+│                                                                  │          │
+│                                                                  ▼          │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                           simulator/                                 │   │
+│  │   41 instruction implementations: ADD, SUB, MUL, DIV, MOVE, JUMP,   │   │
+│  │   CALL, RET, PUSH, POP, CMP, OR, AND, XOR, SH, etc.                │   │
+│  │   + RunProgram.java (execution engine with callback interface)      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                        │                                    │
+│                                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                          enviroment/                                 │   │
+│  │   Machine state: Memory, Registers, Flags                           │   │
+│  │   Static access via Enviroment.MEMORY, Enviroment.REGISTERS, etc.  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                        │                                    │
+│                                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                            core/                                     │   │
+│  │   MachineConstants - Register count, memory size, etc.              │   │
+│  │   ErrorMessages - Localized error strings                           │   │
+│  │   ExecutionController - Interface for stopping execution            │   │
+│  │   events/ - Event bus for publish-subscribe notifications           │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Package Descriptions / Paketbeschreibungen
+
+| Package | Description |
+|---------|-------------|
+| `core/` | Machine constants, error messages, and event bus system |
+| `core/events/` | Publish-subscribe event system for decoupled notifications |
+| `enviroment/` | Machine runtime state (Memory, Registers, Flags) |
+| `scanner/` | Lexical analysis - tokenizes assembly source code |
+| `parser/` | Syntax analysis - parses tokens into commands |
+| `program/` | Generates machine code, handles label resolution |
+| `interpreter/` | Decodes binary opcodes back into Command objects |
+| `simulator/` | Instruction implementations (~41 commands) |
+| `Exceptions/` | Custom exception types |
+| `gui/` | Swing-based GUI (entry: `gui.Main`) |
+| `cli/` | Command-line interface (entry: `cli.Main`) |
+
+### Machine Configuration / Maschinenkonfiguration
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `MEMORY_SIZE` | 1,048,576 | 1MB of addressable memory |
+| `REGISTER_COUNT` | 16 | Registers R0-R15 |
+| `SP_REGISTER` | 14 | Stack Pointer (R14) |
+| `PC_REGISTER` | 15 | Program Counter (R15) |
+| `WORD_SIZE` | 4 | 32-bit word |
+
+### Data Types / Datentypen
+
+| Type | Size | Description |
+|------|------|-------------|
+| B | 1 byte | Byte |
+| H | 2 bytes | Half-word (16-bit) |
+| W | 4 bytes | Word (32-bit) |
+| F | 4 bytes | Float (IEEE 754) |
+| D | 8 bytes | Double (IEEE 754) |
+
+### Event System / Ereignissystem
+
+The core library uses a publish-subscribe event system for decoupled communication:
+
+```java
+// Subscribe to memory errors
+Enviroment.getEventBus().subscribe(MemoryAccessEvent.class, event -> {
+    System.out.println("Memory error at " + event.getAddress());
+});
+
+// Subscribe to all events
+Enviroment.getEventBus().subscribeAll(event -> {
+    System.out.println("Event: " + event);
+});
+```
+
+Available events:
+- `MemoryAccessEvent` - Out-of-bounds memory access
+- `AssemblyEvent` - Assembly status (started, success, failed, labels resolved)
+- `ExecutionStateEvent` - Program execution state changes
+- `RegisterChangeEvent` - Register value changes
+- `BreakpointEvent` - Breakpoint hit notifications
+
+## Tests ##
+
+Tests are organized by layer:
+
+```
+src/test/java/
+├── cli/
+│   └── IntegrationTests.java     # Parameterized end-to-end tests
+├── core/
+│   ├── MachineConstantsTest.java # Constant verification
+│   └── events/
+│       └── MachineEventBusTest.java  # Event bus tests
+└── enviroment/
+    ├── FlagsTest.java            # Flag operations
+    ├── MemoryTest.java           # Memory operations
+    ├── NumberConversionTest.java # Byte/int conversions
+    └── RegisterTest.java         # Register operations
+```
+
+Run tests: `./gradlew test`

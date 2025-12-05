@@ -1,0 +1,16 @@
+          SEG
+
+          MOVE W I H'12345678', R0
+          MOVE W I 500, R1
+          MOVE W R0, !R1
+
+          EXT I 8, I 8, !R1, R2
+
+          MOVE W I H'80000000', R3
+          MOVE W I 600, R4
+          MOVE W R3, !R4
+
+          EXTS I 31, I 1, !R4, R5
+
+          HALT
+          END

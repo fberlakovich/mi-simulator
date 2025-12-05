@@ -1,26 +1,40 @@
 plugins {
     id 'java'
     id 'application'
+    id 'jacoco'
+    id 'org.openrewrite.rewrite' version '6.17.0'
+    id 'info.solidsoft.pitest' version '1.15.0'
 }
 
 group 'de.unibw.mnp'
 version '1.14'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation 'junit:junit:4.13.2'
     implementation 'org.drjekyll:fontchooser:2.4'
+    testImplementation 'junit:junit:4.13.2'
+
+    // OpenRewrite dependencies
+    rewrite platform('org.openrewrite.recipe:rewrite-recipe-bom:2.17.0')
+    rewrite 'org.openrewrite:rewrite-java'
+    rewrite 'org.openrewrite.recipe:rewrite-static-analysis'
 }
 
-ext {
-    javaMainClass = "gui.Main"
+rewrite {
+    activeRecipe('de.unibw.mnp.MigrateEnviromentToMachine')
 }
 
 application {
-    mainClassName = javaMainClass
+    mainClass = "gui.Main"
 }
 
 tasks.jar {
@@ -33,9 +47,81 @@ tasks.register('cli-jar', Jar) {
     manifest {
         attributes["Main-Class"] = "cli.Main"
     }
-    archivesBaseName = 'mi-simulator-cli'
+    archiveBaseName = 'mi-simulator-cli'
 
     // TODO: make this more specific once we have a clear separation between GUI and CLI
     from sourceSets.main.runtimeClasspath
     group = 'build'
+}
+
+test {
+    useJUnit()
+    finalizedBy jacocoTestReport
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, include: [
+                'engine/**/*.class',
+                'core/**/*.class',
+                'cli/**/*.class',
+                'codegenerator/**/*.class',
+                'interpreter/**/*.class',
+                'parser/**/*.class',
+                'scanner/**/*.class'
+            ])
+        }))
+    }
+}
+
+// Run targets
+tasks.register('runGui', JavaExec) {
+    description = 'Run the MI Simulator GUI'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'gui.Main'
+}
+
+tasks.register('runCli', JavaExec) {
+    description = 'Run the MI Simulator CLI'
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'cli.Main'
+    standardInput = System.in
+    // Pass arguments via -Pargs="program.mi -hex"
+    if (project.hasProperty('args')) {
+        args project.args.split('\\s+')
+    }
+}
+
+// PIT Mutation Testing configuration
+pitest {
+    targetClasses = ['engine.**', 'cli.**']
+    targetTests = ['engine.**', 'cli.**', 'core.**', 'interpreter.**']
+    pitestVersion = '1.15.0'
+    // Project uses JUnit 4, no junit5PluginVersion needed
+    threads = 4
+    outputFormats = ['HTML', 'XML']
+    timestampedReports = false
+    mutationThreshold = 0
+    coverageThreshold = 0
+    // Exclude GUI-related code that's hard to test
+    excludedClasses = ['gui.**']
+    // Use default mutators for good coverage
+    mutators = ['DEFAULTS']
+    // Increase timeout for slower tests
+    timeoutConstInMillis = 10000
+    // Verbose output
+    verbose = true
 }

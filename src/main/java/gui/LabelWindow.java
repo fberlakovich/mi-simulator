@@ -3,7 +3,7 @@
  */
 package gui;
 
-import codegenerator.Label;
+import engine.program.Label;
 
 import javax.swing.*;
 import java.util.ArrayList;
