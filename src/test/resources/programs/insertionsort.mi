@@ -1,0 +1,9 @@
+        SEG
+        MOVE W I 100, R0
+        MOVE W I 200, R1
+        MOVE W I 300, R2
+        ADD W R0, R2
+        ADD W R1, R2
+        DIV W I 2, R2
+        HALT
+        END

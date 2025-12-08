@@ -1,0 +1,11 @@
+        SEG
+        MOVE W I 5, R0
+        MOVE W I 12, R1
+        MOVE W I 1, R2
+loop:   CMP W R2, R0
+        JGT done
+        MULT W R1, R2
+        ADD W I 1, R2
+        JUMP loop
+done:   HALT
+        END

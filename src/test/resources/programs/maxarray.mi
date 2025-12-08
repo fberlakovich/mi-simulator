@@ -1,0 +1,25 @@
+        SEG
+        MOVE W I 6000, R0
+        MOVE W I 45, !R0+
+        MOVE W I 12, !R0+
+        MOVE W I 87, !R0+
+        MOVE W I 23, !R0+
+        MOVE W I 56, !R0
+        MOVE W I 6000, R0
+        MOVE W I 5, R1
+        MOVE W !R0, R2
+        MOVE W I 1, R3
+loop:   CMP W R3, R1
+        JGE done
+        MOVE W R0, R4
+        MOVE W R3, R5
+        MULT W I 4, R5
+        ADD W R5, R4
+        MOVE W !R4, R6
+        CMP W R6, R2
+        JLE skip
+        MOVE W R6, R2
+skip:   ADD W I 1, R3
+        JUMP loop
+done:   HALT
+        END

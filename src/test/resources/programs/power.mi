@@ -1,0 +1,11 @@
+        SEG
+        MOVE W I 2, R0
+        MOVE W I 10, R1
+        MOVE W I 1, R2
+        CMP W I 0, R1
+        JEQ done
+loop:   MULT W R0, R2
+        SUB W I 1, R1
+        JGT loop
+done:   HALT
+        END
