@@ -10,6 +10,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 
 import static engine.MachineConstants.REGISTER_COUNT;
+import static engine.MachineConstants.MEMORY_SIZE;
+import static engine.MachineConstants.SP_REGISTER;
 import static org.junit.Assert.*;
 
 /**
@@ -38,7 +40,12 @@ public class QuietMachineTest {
         assertEquals(REGISTER_COUNT, lines.length);
 
         for (int i = 0; i < REGISTER_COUNT; i++) {
-            assertEquals("R" + i + ": 0", lines[i].trim());
+            if (i == SP_REGISTER) {
+                // Stack pointer is initialized to top of memory
+                assertEquals("R" + i + ": " + MEMORY_SIZE, lines[i].trim());
+            } else {
+                assertEquals("R" + i + ": 0", lines[i].trim());
+            }
         }
     }
 
@@ -53,7 +60,12 @@ public class QuietMachineTest {
         assertEquals(REGISTER_COUNT, lines.length);
 
         for (int i = 0; i < REGISTER_COUNT; i++) {
-            assertEquals("R" + i + ": 0x0", lines[i].trim());
+            if (i == SP_REGISTER) {
+                // Stack pointer is initialized to top of memory (0x100000)
+                assertEquals("R" + i + ": 0x" + Integer.toHexString(MEMORY_SIZE).toUpperCase(), lines[i].trim());
+            } else {
+                assertEquals("R" + i + ": 0x0", lines[i].trim());
+            }
         }
     }
 

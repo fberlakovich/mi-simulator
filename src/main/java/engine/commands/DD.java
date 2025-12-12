@@ -118,7 +118,7 @@ public class DD extends Command {
      */
     @Override
     public void run() {
-        System.out.println("Datendefinition sind nicht ausführbar.");
+        throw new engine.InternalError("Data definitions (DD) are not executable");
     }
 
     /*

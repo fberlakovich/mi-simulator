@@ -146,7 +146,7 @@ public class Add extends Command {
                 opcode = three ? new MyByte("C8") : new MyByte("C3");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid ADD length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

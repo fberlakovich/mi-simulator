@@ -125,11 +125,12 @@ public class Call extends Command {
         } else {
             ziel = op1.getAdress();
         }
-        CellarAddressing test = new CellarAddressing(machine, SP_REGISTER, 4, -4, false);
+        // Push return address onto stack (decrement SP, then store)
+        CellarAddressing stack = new CellarAddressing(machine, SP_REGISTER, 4, -4, false);
+        // PC already advanced past CALL instruction during decoding, so it points to return address
+        stack.setContent(NumberConversion.intToByte(machine.getPC(), 4), 4);
 
-        test.setContent(
-                NumberConversion.intToByte(machine.getPC() + encode().length, 4), 4);
-
+        // Jump to target function
         machine.getRegisters().getRegister(PC_REGISTER)
                 .setContent(NumberConversion.intToByte(ziel, 4));
     }

@@ -192,4 +192,5 @@ public class BitfieldTest extends InstructionTestBase {
         assertEquals(32, getRegister(3));  // P+S when not found
         assertTrue("Zero flag should be set (bit NOT found - BNF)", isZeroFlag());
     }
+
 }

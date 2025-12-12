@@ -57,6 +57,13 @@ tasks.register('cli-jar', Jar) {
 test {
     useJUnit()
     finalizedBy jacocoTestReport
+    
+    // Add timeout to detect hanging tests (e.g., deadlocks)
+    // Individual tests can override with @Test(timeout=...)
+    systemProperty 'junit.jupiter.execution.timeout.default', '10s'
+    
+    // For JUnit 4, we need to use test timeout at the task level
+    timeout = java.time.Duration.ofSeconds(300) // 5 minutes for entire test suite
 }
 
 jacoco {

@@ -152,7 +152,7 @@ public class AndNot extends Command {
                 opcode = three ? new MyByte("B8") : new MyByte("B5");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid ANDNOT length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

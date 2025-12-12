@@ -27,24 +27,24 @@ public class Ins extends Command {
     /** dritter Operand */
     Operand op3;
 
-    /** dritter Operand */
+    /** vierter Operand */
     Operand op4;
 
     /**
-     * Konstruktor für einen Findc-Befehl
+     * Konstruktor für einen INS-Befehl
      *
      * @param line
      *            Zeile im Quelltext
      * @param adress
      *            Adresse des Befehls
      * @param op1
-     *            erster Operand
+     *            P (bit position)
      * @param op2
-     *            zweiter Operand
+     *            S (bit size)
      * @param op3
-     *            dritter Operand
+     *            A (source)
      * @param op4
-     *            vierter Operand
+     *            dest (destination, modified in place)
      * @param beg
      *            Zeichenposition - Beginn des Befehlswortes im Quelltext
      * @param end
@@ -111,6 +111,7 @@ public class Ins extends Command {
     public byte[] encode() {
         MyByte opcode = new MyByte("F8");
 
+        // For 5-operand form, only encode the first 4 operands (op5 is result register, not encoded)
         int x = 1;
         byte[] opc1 = op1.encode();
         byte[] opc2 = op2.encode();
@@ -163,22 +164,34 @@ public class Ins extends Command {
     @Override
     public synchronized void run() {
         super.run();
+
+        // MI Spec (page 30): Insert bitfield
+        // Machine instruction: INS P, S, A, dest
+        // Bit numbering: LSB-0 (bit 0 is least significant)
+
         int p = NumberConversion.myBytetoIntWithSign(op1.getContent());
         int s = NumberConversion.myBytetoIntWithSign(op2.getContent());
-        int a = op3.getAdress();
-        int beg = (a * 8 + p) / 8;
-        int end = beg + 5;
-        long bitfield = machine.getMemory().getContentAsLong(beg, end - beg);
+        int sourceValue = NumberConversion.myBytetoIntWithSign(op3.getContent());
+        int destValue = NumberConversion.myBytetoIntWithSign(op4.getContent());
 
-        int sh_re = 40 - s - ((p < 0) ? (p % 8) + 8 : p % 8);
-        int sh_li = 64 - s;
+        // Create mask for S bits at position P (LSB-0 numbering)
+        long mask = (s >= 64) ? -1L : ((1L << s) - 1);
 
-        bitfield >>>= sh_re;
-        bitfield <<= sh_li;
-        bitfield >>= sh_li;
+        // Clear the target bitfield in destination
+        long clearedDest = (destValue & 0xFFFFFFFFL) & ~(mask << p);
 
-        MyByte[] ret = NumberConversion.longToByte(bitfield, 4);
+        // Insert source bits (low S bits) at position P
+        long sourceBits = (sourceValue & 0xFFFFFFFFL) & mask;
+        long result = clearedDest | (sourceBits << p);
+
+        // Write result to destination operand (modifies in place)
+        MyByte[] ret = NumberConversion.longToByte(result, 4);
         op4.setContent(ret, 4);
+
+        machine.getFlags().setCarry(false);
+        machine.getFlags().setOverflow(false);
+        machine.getFlags().setZero((int)result == 0);
+        machine.getFlags().setNegative((int)result < 0);
     }
 
     /*
@@ -214,7 +227,6 @@ public class Ins extends Command {
      */
     @Override
     public String toString() {
-
         return "INS " + op1.toString() + ", " + op2.toString() + ", " + op3.toString()
                 + ", " + op4.toString();
     }

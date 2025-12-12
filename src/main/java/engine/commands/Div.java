@@ -145,7 +145,7 @@ public class Div extends Command {
                 opcode = three ? new MyByte("E6") : new MyByte("E1");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid DIV length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

@@ -163,48 +163,38 @@ public class Exts extends Command {
     @Override
     public synchronized void run() {
         super.run();
+        // MI Spec (page 30): Extract bitfield with sign extension
+        // EXTS a1, a2, a3, a4: P := S[a1], S := S[a2], A := a3, S[a4] := sign-extended bitfield
+        // Operand order: op1=P, op2=S, op3=A (source address), op4=dest
+
         int p = NumberConversion.myBytetoIntWithSign(op1.getContent());
         int s = NumberConversion.myBytetoIntWithSign(op2.getContent());
-        int a = op3.getAdress();
+        int value = NumberConversion.myBytetoIntWithSign(op3.getContent());
 
-        // Per MI spec (page 30): Extract bitfield with sign extension
-        // MI uses MSB-0 bit numbering: bit 0 is the most significant bit
+        // MSB-0 bit numbering: bit 0 is the most significant bit
+        // Extract S bits starting at bit position P (from MSB)
+        // Convert to LSB-0 for extraction: LSB position = 32 - P - S
+        int lsbStart = 32 - p - s;
+        int mask = (s >= 32) ? -1 : ((1 << s) - 1);
+        int extracted = (lsbStart >= 0) ? (value >>> lsbStart) & mask : 0;
 
-        // Read 8 bytes starting from address A (enough for any valid bitfield)
-        long value = 0;
-        for (int i = 0; i < 8; i++) {
-            int b = machine.getMemory().getContent(a + i, 1)[0].getContent() & 0xFF;
-            value = (value << 8) | b;
+        // Sign-extend: if MSB of extracted bitfield is 1, extend with 1s
+        if (s > 0 && s < 32) {
+            int signBit = 1 << (s - 1);
+            if ((extracted & signBit) != 0) {
+                // Set all bits above position S to 1
+                int extensionMask = (-1) << s;
+                extracted |= extensionMask;
+            }
         }
 
-        // Extract bits P through P+S-1
-        // In our 64-bit value, bit 0 corresponds to the MSB
-        int shiftAmount = 64 - p - s;
-        if (shiftAmount >= 0) {
-            value >>>= shiftAmount;
-        } else {
-            value <<= -shiftAmount;
-        }
-
-        // Mask to s bits, then sign-extend
-        // First isolate the s-bit value
-        long mask = (s >= 64) ? -1L : ((1L << s) - 1);
-        long extracted = value & mask;
-
-        // Sign extend: if the high bit of the s-bit value is set, extend with 1s
-        if (s > 0 && s < 64 && (extracted & (1L << (s - 1))) != 0) {
-            // Sign bit is set, extend with 1s
-            extracted |= ~mask;
-        }
-
-        MyByte[] ret = NumberConversion.longToByte(extracted, 4);
+        MyByte[] ret = NumberConversion.intToByte(extracted, 4);
         op4.setContent(ret, 4);
 
-        int val = (int) extracted;
         machine.getFlags().setCarry(false);
         machine.getFlags().setOverflow(false);
-        machine.getFlags().setZero(val == 0);
-        machine.getFlags().setNegative(val < 0);
+        machine.getFlags().setZero(extracted == 0);
+        machine.getFlags().setNegative(extracted < 0);
     }
 
     /*

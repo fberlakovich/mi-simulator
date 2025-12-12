@@ -65,9 +65,11 @@ public class Ret extends Command {
      */
     @Override
     public synchronized void run() {
+        // Pop return address from stack (read from [SP], then increment SP)
         CellarAddressing sp = new CellarAddressing(machine, SP_REGISTER, 4, 4, true);
         Register pc = machine.getRegisters().getRegister(PC_REGISTER);
-        int target = NumberConversion.myBytetoIntWithSign(sp.getContent());
+        // Return addresses are code addresses, which should be treated as unsigned
+        int target = NumberConversion.myBytetoIntWithoutSign(sp.getContent());
         pc.setContent(NumberConversion.intToByte(target, 4));
     }
 

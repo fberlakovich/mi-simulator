@@ -4,6 +4,8 @@ import engine.Machine;
 import org.junit.Before;
 import org.junit.Test;
 
+import static engine.MachineConstants.MEMORY_SIZE;
+import static engine.MachineConstants.SP_REGISTER;
 import static org.junit.Assert.*;
 
 /**
@@ -91,7 +93,10 @@ public class MachineTest {
 
         // Verify state is reset
         assertEquals(0, machine.getPC());
-        assertEquals(0, machine.getStackBegin());
+        // Stack begins at top of memory (stack grows downward)
+        assertEquals(MEMORY_SIZE, machine.getStackBegin());
+        // Stack pointer (R14) is initialized to top of memory
+        assertEquals(MEMORY_SIZE, machine.getRegisters().getRegister(SP_REGISTER).getContentAsNumber(4));
         assertFalse(machine.getFlags().isCarry());
         assertFalse(machine.getFlags().isZero());
         assertEquals(0, machine.getRegisters().getRegister(0).getContentAsNumber(4));

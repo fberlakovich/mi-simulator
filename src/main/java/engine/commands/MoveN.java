@@ -124,7 +124,7 @@ public class MoveN extends Command {
                 opcode = new MyByte("A7");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid MOVEN length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

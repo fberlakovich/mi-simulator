@@ -113,7 +113,7 @@ bei einem Programmdurchlauf direkt als Zustandsdatei verwendet werden.
 
 ## Architecture / Architektur ##
 
-The simulator is organized into a **core library** (no GUI dependencies) and **frontends** (GUI and CLI).
+The simulator is organized into an **engine** (core library with no GUI dependencies) and **frontends** (GUI and CLI).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -124,46 +124,46 @@ The simulator is organized into a **core library** (no GUI dependencies) and **f
 │  │     Window.java          │    │    │     Main.java                    │  │
 │  │  (Main application)      │    │    │  (CLI entry point)               │  │
 │  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
-│  │     GuiState.java        │    │    │     MIMachine.java               │  │
-│  │  (GUI-specific state)    │    │    │  (Execution wrapper)             │  │
+│  │     GuiState.java        │    │    │     PrintingMachine.java         │  │
+│  │  (GUI-specific state)    │    │    │  (Output decorator)              │  │
 │  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
-│  │     MemoryView.java      │    │    │     PrintingMachine.java         │  │
-│  │  (Memory visualization)  │    │    │  (Output decorator)              │  │
+│  │     MemoryView.java      │    │    │     QuietMachine.java            │  │
+│  │  (Memory visualization)  │    │    │  (Final state only)              │  │
 │  └──────────────────────────┘    │    └──────────────────────────────────┘  │
 └──────────────────────────────────┴──────────────────────────────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     CORE LIBRARY (No GUI Dependencies)                      │
+│                     ENGINE (No GUI Dependencies)                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐  │
-│  │   scanner   │ -> │   parser    │ -> │ program│ -> │ interpreter│  │
-│  │  (Lexer)    │    │  (Parser)   │    │ (Label res.) │    │ (Decoder)  │  │
-│  └─────────────┘    └─────────────┘    └──────────────┘    └────────────┘  │
-│                                                                  │          │
-│                                                                  ▼          │
+│  ┌───────────────┐   ┌───────────────┐   ┌───────────────┐                 │
+│  │engine/scanner │ → │ engine/parser │ → │engine/program │                 │
+│  │   (Lexer)     │   │   (Parser)    │   │(Label resolve)│                 │
+│  └───────────────┘   └───────────────┘   └───────────────┘                 │
+│                                                   │                         │
+│                                                   ▼                         │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                           simulator/                                 │   │
-│  │   41 instruction implementations: ADD, SUB, MUL, DIV, MOVE, JUMP,   │   │
-│  │   CALL, RET, PUSH, POP, CMP, OR, AND, XOR, SH, etc.                │   │
-│  │   + RunProgram.java (execution engine with callback interface)      │   │
+│  │                       engine/commands/                               │   │
+│  │   41 instruction implementations: ADD, SUB, MULT, DIV, MOVE, JUMP,  │   │
+│  │   CALL, RET, PUSHR, POPR, CMP, OR, ANDNOT, XOR, SH, ROT, EXT, INS,  │   │
+│  │   FINDS, FINDC, JBSSI, JBCCI, CONV, etc.                            │   │
+│  │   + Operand.java (addressing mode decoder/encoder)                   │   │
+│  │   + Opcode.java (instruction opcode definitions)                     │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                        │                                    │
 │                                        ▼                                    │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                          enviroment/                                 │   │
-│  │   Machine state: Memory, Registers, Flags                           │   │
-│  │   Static access via Enviroment.MEMORY, Enviroment.REGISTERS, etc.  │   │
+│  │                          engine/state/                               │   │
+│  │   Machine state: Memory, Register, Flags, MyByte                    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                        │                                    │
 │                                        ▼                                    │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                            core/                                     │   │
-│  │   MachineConstants - Register count, memory size, etc.              │   │
-│  │   ErrorMessages - Localized error strings                           │   │
-│  │   ExecutionController - Interface for stopping execution            │   │
-│  │   events/ - Event bus for publish-subscribe notifications           │   │
+│  │   engine/Machine.java - Central machine instance                     │   │
+│  │   engine/ProgramRunner.java - Execution engine with callbacks       │   │
+│  │   engine/MachineConstants.java - Register count, memory size, etc.  │   │
+│  │   engine/events/ - Event bus for publish-subscribe notifications    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -173,14 +173,14 @@ The simulator is organized into a **core library** (no GUI dependencies) and **f
 
 | Package | Description |
 |---------|-------------|
-| `core/` | Machine constants, error messages, and event bus system |
-| `core/events/` | Publish-subscribe event system for decoupled notifications |
-| `enviroment/` | Machine runtime state (Memory, Registers, Flags) |
-| `scanner/` | Lexical analysis - tokenizes assembly source code |
-| `parser/` | Syntax analysis - parses tokens into commands |
-| `program/` | Generates machine code, handles label resolution |
-| `interpreter/` | Decodes binary opcodes back into Command objects |
-| `simulator/` | Instruction implementations (~41 commands) |
+| `engine/` | Core machine: `Machine.java`, `ProgramRunner.java`, `MachineConstants.java` |
+| `engine/commands/` | 41 instruction implementations + addressing modes (`Operand`, `IndAddressing`, etc.) |
+| `engine/state/` | Machine runtime state (`Memory`, `Register`, `Flags`, `MyByte`) |
+| `engine/scanner/` | Lexical analysis - tokenizes assembly source code |
+| `engine/parser/` | Syntax analysis - parses tokens into commands |
+| `engine/program/` | Label resolution and program representation |
+| `engine/events/` | Publish-subscribe event system for decoupled notifications |
+| `engine/util/` | Utility classes (`NumberConversion`) |
 | `Exceptions/` | Custom exception types |
 | `gui/` | Swing-based GUI (entry: `gui.Main`) |
 | `cli/` | Command-line interface (entry: `cli.Main`) |
@@ -207,16 +207,16 @@ The simulator is organized into a **core library** (no GUI dependencies) and **f
 
 ### Event System / Ereignissystem
 
-The core library uses a publish-subscribe event system for decoupled communication:
+The engine uses a publish-subscribe event system for decoupled communication:
 
 ```java
 // Subscribe to memory errors
-Enviroment.getEventBus().subscribe(MemoryAccessEvent.class, event -> {
+machine.getEventBus().subscribe(MemoryAccessEvent.class, event -> {
     System.out.println("Memory error at " + event.getAddress());
 });
 
 // Subscribe to all events
-Enviroment.getEventBus().subscribeAll(event -> {
+machine.getEventBus().subscribeAll(event -> {
     System.out.println("Event: " + event);
 });
 ```
@@ -230,21 +230,15 @@ Available events:
 
 ## Tests ##
 
-Tests are organized by layer:
+The test suite is organized into three layers:
 
-```
-src/test/java/
-├── cli/
-│   └── IntegrationTests.java     # Parameterized end-to-end tests
-├── core/
-│   ├── MachineConstantsTest.java # Constant verification
-│   └── events/
-│       └── MachineEventBusTest.java  # Event bus tests
-└── enviroment/
-    ├── FlagsTest.java            # Flag operations
-    ├── MemoryTest.java           # Memory operations
-    ├── NumberConversionTest.java # Byte/int conversions
-    └── RegisterTest.java         # Register operations
-```
+1. **Unit Tests** (`engine/commands/`, `engine/state/`) - Test individual instructions and machine state operations. Each instruction class has a corresponding test that verifies correct computation, flag behavior per MI specification, and edge cases.
 
-Run tests: `./gradlew test`
+2. **Integration Tests** (`cli/IntegrationTests.java`) - Parameterized tests that load `.mi` assembly programs from `src/test/resources/programs/`, execute them, and compare output against expected results. Covers addressing modes, instruction combinations, and real program behavior.
+
+3. **Fuzz Tests** (`engine/parser/ParserFuzzTest.java`) - Random input generation to catch parser crashes and edge cases.
+
+```bash
+./gradlew test      # Run all tests
+./gradlew pitest    # Run mutation testing (report: build/reports/pitest/index.html)
+```

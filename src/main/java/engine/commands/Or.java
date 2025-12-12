@@ -151,7 +151,7 @@ public class Or extends Command {
                 opcode = three ? new MyByte("B2") : new MyByte("AF");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid OR length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

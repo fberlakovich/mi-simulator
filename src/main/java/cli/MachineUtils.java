@@ -38,7 +38,6 @@ public class MachineUtils {
             System.err.println(ASSEMBLE_UNSUCCESSFUL);
             return false;
         }
-        System.out.println(ASSEMBLE_SUCCESSFUL);
         return true;
     }
 

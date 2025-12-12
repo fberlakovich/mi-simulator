@@ -145,35 +145,59 @@ public class Jbcci extends Command {
      */
     @Override
     public synchronized void run() {
-        super.run();
-        int ziel = 0;
-        if (op3 instanceof AbsAddress) {
-            ziel = ((AbsAddress) op3).getAdress();
+        // JBCCI bitPos, register, label
+        // LSB-0 bit numbering throughout
+        // Semantics (inverse of JBSSI): JBCCI N tests bit N, if clear then jumps
+        // Always clears the 2-bit pair containing N: bits (N & ~1) and (N | 1)
+        // This means: N=0,1 both clear bits 0,1; N=2,3 both clear bits 2,3; etc.
+
+        // Get bit position - for AbsAddress, the address itself IS the immediate value
+        int bitPos;
+        if (op1 instanceof AbsAddress) {
+            bitPos = ((AbsAddress) op1).getAdress();
         } else {
-            if (op3 instanceof RelAddressing) {
-                ziel = op1.getAdress();
+            bitPos = NumberConversion.myBytetoIntWithSign(op1.getContent());
+        }
+
+        // Get register value
+        MyByte[] content = op2.getContent();
+        int value = NumberConversion.myBytetoIntWithSign(content);
+
+        // Test if bit at bitPos (LSB-0) is clear
+        boolean bitIsClear = ((value >>> bitPos) & 1) == 0;
+
+        // Determine bits to clear
+        int evenBit = bitPos & ~1;  // Even bit in pair
+        int oddBit = bitPos | 1;     // Odd bit in pair
+
+        // Always clear the even bit
+        boolean evenBitWasAlreadyClear = ((value >>> evenBit) & 1) == 0;
+        value &= ~(1 << evenBit);
+
+        // Clear the odd bit if: (1) bitPos is even, OR (2) even bit was already clear
+        boolean bitPosIsEven = (bitPos & 1) == 0;
+        if (bitPosIsEven || evenBitWasAlreadyClear) {
+            value &= ~(1 << oddBit);
+        }
+
+        op2.setContent(NumberConversion.intToByte(value, 4), 4);
+
+        // Jump if bit bitPos was clear before we modified
+        if (bitIsClear) {
+            int target = 0;
+            if (op3 instanceof AbsAddress) {
+                target = ((AbsAddress) op3).getAdress();
+            } else if (op3 instanceof RelAddressing) {
+                target = op3.getAdress();
             } else {
-                ziel = NumberConversion.myBytetoIntWithoutSign(op1.getContent());
+                target = NumberConversion.myBytetoIntWithoutSign(op3.getContent());
             }
-        }
-        int p = NumberConversion.myBytetoIntWithSign(op1.getContent());
-        int s = 1;
-        int a = op2.getAdress();
-        int beg = (a * 8 + p) / 8;
-        int end = beg + 5;
-        long bitfield = machine.getMemory().getContentAsLong(beg, end - beg);
-
-        int sh_re = 40 - s - ((p < 0) ? (p % 8) + 8 : p % 8);
-        int sh_li = 64 - s;
-
-        bitfield >>>= sh_re;
-        bitfield <<= sh_li;
-        bitfield >>= sh_li;
-        if (bitfield == 1) {
             machine.getRegisters().getRegister(PC_REGISTER)
-                    .setContent(NumberConversion.intToByte(ziel, 4));
+                    .setContent(NumberConversion.intToByte(target, 4));
+        } else {
+            // No jump - increment PC normally
+            super.run();
         }
-
     }
 
     /*

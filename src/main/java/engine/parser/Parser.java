@@ -1270,7 +1270,7 @@ public class Parser {
                     boolean found = false;
                     label = ret.getText().substring(1, ret.getText().length() - 1);
                     for (byte b : label.getBytes()) {
-                        System.out.println("Zeichen:" + b);
+                        // Debug: character output
 
                         if (b != 39 || found) {
                             list.add(new ImmediateOperand(
@@ -1678,6 +1678,10 @@ public class Parser {
         ret = scanner.getNextSymbol();
         ArrayList<Operand> operands = operands(4, false);
         switch (operands.size()) {
+            case 2:
+                befehl = new Findc(machine, zeile, adress, operands.get(0), operands.get(1),
+                        null, null, beg, end);
+                break;
             case 4:
                 befehl = new Findc(machine, zeile, adress, operands.get(0), operands.get(1),
                         operands.get(2), operands.get(3), beg, end);
@@ -1701,6 +1705,10 @@ public class Parser {
         ret = scanner.getNextSymbol();
         ArrayList<Operand> operands = operands(4, false);
         switch (operands.size()) {
+            case 2:
+                befehl = new Finds(machine, zeile, adress, operands.get(0), operands.get(1),
+                        null, null, beg, end);
+                break;
             case 4:
                 befehl = new Finds(machine, zeile, adress, operands.get(0), operands.get(1),
                         operands.get(2), operands.get(3), beg, end);

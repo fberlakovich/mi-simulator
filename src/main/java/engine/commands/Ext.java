@@ -163,71 +163,29 @@ public class Ext extends Command {
     @Override
     public synchronized void run() {
         super.run();
+        // MI Spec (page 30): Extract bitfield
+        // EXT a1, a2, a3, a4: P := S[a1], S := S[a2], A := a3, S[a4] := extracted bitfield
+        // Operand order: op1=P, op2=S, op3=A (source address), op4=dest
+
         int p = NumberConversion.myBytetoIntWithSign(op1.getContent());
         int s = NumberConversion.myBytetoIntWithSign(op2.getContent());
-        int a = op3.getAdress();
+        int value = NumberConversion.myBytetoIntWithSign(op3.getContent());
 
-        // Per MI spec (page 30): Extract bitfield of size S bits starting at bit position P
-        // from base address A. Bit numbering uses LSB-0 convention (bit 0 is least significant).
-        // Memory is big-endian, so for a word at address A:
-        //   - addr A:   bits 31-24 (MSB)
-        //   - addr A+1: bits 23-16
-        //   - addr A+2: bits 15-8
-        //   - addr A+3: bits 7-0 (LSB)
+        // MSB-0 bit numbering: bit 0 is the most significant bit
+        // Extract S bits starting at bit position P (from MSB)
+        // The bitfield spans from bit P to bit P+S-1 (MSB-0 numbering)
+        // Convert to LSB-0 for extraction: LSB position = 31 - (P + S - 1) = 32 - P - S
+        int lsbStart = 32 - p - s;
+        int mask = (s >= 32) ? -1 : ((1 << s) - 1);
+        int result = (lsbStart >= 0) ? (value >>> lsbStart) & mask : 0;
 
-        // We need to read enough bytes to cover bits P through P+S-1
-        // Calculate which bytes contain these bits
-        int highestBit = p + s - 1;
-        int lowestBit = p;
-
-        // In big-endian with LSB-0, bit 0 is at the rightmost position
-        // To read a range of bits, we need to figure out which bytes contain them
-        // Assuming the bitfield can span up to 64 bits (8 bytes)
-
-        // Read 8 bytes starting from address A (enough for any valid bitfield)
-        // This gives us bits 63-0 when interpreted as a 64-bit big-endian value
-        long value = 0;
-        for (int i = 0; i < 8; i++) {
-            int b = machine.getMemory().getContent(a + i, 1)[0].getContent() & 0xFF;
-            value = (value << 8) | b;
-        }
-
-        // Now 'value' contains 64 bits with bit 63 being the MSB at address A
-        // and bit 0 being the LSB at address A+7
-        // But MI's bit numbering has bit 0 at address A (the MSB of our 64-bit value)
-        // So we need to reverse our thinking...
-
-        // Actually, looking at the spec diagram more carefully:
-        // MI numbers bits starting from 0 at position P from address A
-        // The diagram shows: 0, P-1, P, P+S-1 with b₀ at position P
-        // This suggests bit position increases with memory address
-
-        // For MI with big-endian and this bit numbering:
-        // Bit P is at byte address A + P/8, within-byte position (7 - P%8) from MSB
-        // Let's use a different approach: shift and mask based on P and S
-
-        // Extract bits P through P+S-1
-        // In our 64-bit value, bit 0 corresponds to the MSB
-        // We need to shift right to position the desired bits at the low end
-        int shiftAmount = 64 - p - s;
-        if (shiftAmount >= 0) {
-            value >>>= shiftAmount;
-        } else {
-            value <<= -shiftAmount;
-        }
-
-        // Mask to s bits (zero extension for EXT)
-        long mask = (s >= 64) ? -1L : ((1L << s) - 1);
-        long result = value & mask;
-
-        MyByte[] ret = NumberConversion.longToByte(result, 4);
+        MyByte[] ret = NumberConversion.intToByte(result, 4);
         op4.setContent(ret, 4);
 
-        int val = (int) result;
         machine.getFlags().setCarry(false);
         machine.getFlags().setOverflow(false);
-        machine.getFlags().setZero(val == 0);
-        machine.getFlags().setNegative(val < 0);
+        machine.getFlags().setZero(result == 0);
+        machine.getFlags().setNegative(result < 0);
     }
 
     /*

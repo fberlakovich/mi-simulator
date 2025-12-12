@@ -151,7 +151,7 @@ public class Xor extends Command {
                 opcode = three ? new MyByte("BE") : new MyByte("BB");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid XOR length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();

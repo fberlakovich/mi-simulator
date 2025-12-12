@@ -98,31 +98,21 @@ public class ProgramRunner extends Thread implements ExecutionController {
      * @return the next Command
      */
     public Command readNextCommand() {
+        int startPC = machine.getPC();
+        Command programCommand = getCommandAtAddress(startPC);
+
+        if (programCommand != null) {
+            // Use the original parsed command - this preserves parser semantics
+            // (e.g., 2-operand FINDS/FINDC which decode() can't handle)
+            byte[] encoded = programCommand.encode();
+            machine.addToPC(encoded.length);
+            next = programCommand;
+            return next;
+        }
+
+        // No parsed command at this address - decode from memory
+        // (handles self-modifying code or dynamic execution)
         next = decodeNextCommand();
-        Command programCommand = next != null ? getCommandAtAddress(next.getAdress()) : null;
-        byte[] decoded = next != null ? next.encode() : new byte[]{};
-        byte[] original = programCommand != null ? programCommand.encode() : new byte[]{};
-
-        // Check for memory manipulation
-        boolean manipulated = decoded.length != original.length;
-        if (!manipulated) {
-            for (int i = 0; i < decoded.length; i++) {
-                if (decoded[i] != original[i]) {
-                    manipulated = true;
-                    break;
-                }
-            }
-        }
-
-        if (manipulated) {
-            machine.getEventBus().publish(new AssemblyEvent(
-                    AssemblyEvent.Type.WARNING,
-                    "Memory manipulation detected"));
-        }
-
-        if (next != null) {
-            machine.setPC(next.getAdress());
-        }
         return next;
     }
 

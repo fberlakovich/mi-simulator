@@ -6,7 +6,7 @@ import static org.junit.Assert.assertEquals;
 
 public class CallRetTest extends InstructionTestBase {
 
-    @Test
+    @Test(timeout = 5000) // 5 second timeout to detect hangs
     public void testSimpleCallAndReturn() {
         String program = """
                 SEG
@@ -24,7 +24,7 @@ public class CallRetTest extends InstructionTestBase {
         assertEquals(20, getRegister(2));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testNestedCalls() {
         String program = """
                 SEG
@@ -43,7 +43,7 @@ public class CallRetTest extends InstructionTestBase {
         assertEquals(1111, getRegister(0));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCallPreservesRegisters() {
         String program = """
                 SEG
@@ -61,7 +61,7 @@ public class CallRetTest extends InstructionTestBase {
         assertEquals(99, getRegister(2));
     }
 
-    @Test
+    @Test(timeout = 5000)
     public void testCallWithStackManipulation() {
         String program = """
                 SEG
@@ -69,10 +69,10 @@ public class CallRetTest extends InstructionTestBase {
                 MOVE W I 20, R1
                 CALL func
                 HALT
-        func:   PUSHR R0, R1
+        func:   PUSHR
                 MOVE W I 99, R0
                 MOVE W I 88, R1
-                POPR R0, R1
+                POPR
                 RET
                 END
                 """;

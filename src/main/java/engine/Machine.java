@@ -10,6 +10,8 @@ import engine.state.RegisterBody;
 import engine.util.NumberConversion;
 
 import static engine.MachineConstants.PC_REGISTER;
+import static engine.MachineConstants.SP_REGISTER;
+import static engine.MachineConstants.MEMORY_SIZE;
 
 /**
  * Represents the MI machine.
@@ -67,6 +69,7 @@ public class Machine {
      */
     public static void resetInstance() {
         instance = new Machine();
+        instance.reset();  // Ensure all registers start at 0
     }
 
     /**
@@ -92,8 +95,11 @@ public class Machine {
         for (int i = 0; i < registers.getRegisterCount(); i++) {
             registers.getRegister(i).setContentAsNumber(0);
         }
+        // Initialize stack pointer to top of memory (stack grows downward)
+        registers.getRegister(SP_REGISTER).setContentAsNumber(MEMORY_SIZE);
+
         flags.reset();
-        stackBegin = 0;
+        stackBegin = MEMORY_SIZE;
         memoryErrorHandler = null;
         program = null;
         activeRunner = null;

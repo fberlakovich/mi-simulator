@@ -114,10 +114,25 @@ public class Findc extends Command {
         int x = 1;
         byte[] opc1 = op1.encode();
         byte[] opc2 = op2.encode();
+
+        if (op3 == null) {
+            // 2-operand form
+            MyByte[] ret = new MyByte[opc1.length + opc2.length + 1];
+            ret[0] = opcode;
+            for (byte element : opc1) {
+                ret[x] = new MyByte(element);
+                x++;
+            }
+            for (byte element : opc2) {
+                ret[x] = new MyByte(element);
+                x++;
+            }
+            return MyByte.toByteArray(ret);
+        }
+
         byte[] opc3 = op3.encode();
         byte[] opc4 = op4.encode();
-        MyByte[] ret = new MyByte[opc1.length + opc2.length + opc3.length + opc4.length
-                + 1];
+        MyByte[] ret = new MyByte[opc1.length + opc2.length + opc3.length + opc4.length + 1];
         ret[0] = opcode;
         for (byte element : opc1) {
             ret[x] = new MyByte(element);
@@ -127,19 +142,15 @@ public class Findc extends Command {
             ret[x] = new MyByte(element);
             x++;
         }
-
         for (byte element : opc3) {
             ret[x] = new MyByte(element);
             x++;
         }
-
         for (byte element : opc4) {
             ret[x] = new MyByte(element);
             x++;
         }
-
         return MyByte.toByteArray(ret);
-
     }
 
     /*
@@ -163,46 +174,62 @@ public class Findc extends Command {
     @Override
     public synchronized void run() {
         super.run();
-        int p = NumberConversion.myBytetoIntWithSign(op1.getContent());
-        int s = NumberConversion.myBytetoIntWithSign(op2.getContent());
-        int a = op3.getAdress();
+        // MI Spec has two forms:
+        // 2-operand: FINDC source, dest - search all 32 bits for first clear, result in dest
+        // 4-operand: FINDC P, S, A, dest - search S bits starting at P from A
 
-        // Per MI spec (page 31): Find first clear bit in bitfield
-        // MI uses MSB-0 bit numbering: bit 0 is the most significant bit
-        // Returns position of first '0' bit (P <= position < P+S), or P+S if not found
+        int p, s, value;
+        Operand dest;
 
-        // Read 8 bytes starting from address A
-        long value = 0;
-        for (int i = 0; i < 8; i++) {
-            int b = machine.getMemory().getContent(a + i, 1)[0].getContent() & 0xFF;
-            value = (value << 8) | b;
-        }
+        if (op3 == null) {
+            // 2-operand form: op1=source, op2=dest
+            // Search all 32 bits starting at position 0 (LSB-0 numbering for simple form)
+            p = 0;
+            s = 32;
+            value = NumberConversion.myBytetoIntWithSign(op1.getContent());
+            dest = op2;
 
-        // Search for first clear bit in the range [P, P+S)
-        // In our 64-bit value, bit 0 corresponds to bit 63 of 'value' (MSB)
-        int result = p + s;  // Default: not found
-        for (int bitPos = p; bitPos < p + s; bitPos++) {
-            // Check if bit at position bitPos is clear
-            // bitPos 0 = bit 63 of value, bitPos 63 = bit 0 of value
-            int shiftAmount = 63 - bitPos;
-            if (shiftAmount >= 0 && shiftAmount < 64) {
-                if ((value & (1L << shiftAmount)) == 0) {
+            // LSB-0 for 2-operand form: find lowest clear bit
+            int result = -1;  // Not found (all bits set)
+            for (int bitPos = 0; bitPos < 32; bitPos++) {
+                if (((value >>> bitPos) & 1) == 0) {
                     result = bitPos;
                     break;
                 }
             }
+
+            MyByte[] ret = NumberConversion.intToByte(result, 4);
+            dest.setContent(ret, 4);
+
+            machine.getFlags().setCarry(false);
+            machine.getFlags().setOverflow(false);
+            machine.getFlags().setZero(result == -1);  // Z=1 if no clear bit found
+            machine.getFlags().setNegative(result < 0);
+        } else {
+            // 4-operand form: op1=P, op2=S, op3=A (address/source), op4=dest
+            p = NumberConversion.myBytetoIntWithSign(op1.getContent());
+            s = NumberConversion.myBytetoIntWithSign(op2.getContent());
+            value = NumberConversion.myBytetoIntWithSign(op3.getContent());
+            dest = op4;
+
+            // MSB-0 bit numbering: bit 0 is leftmost (most significant)
+            int result = p + s;  // Default: not found, return P+S
+            for (int bitPos = p; bitPos < p + s && bitPos < 32; bitPos++) {
+                int lsbPos = 31 - bitPos;
+                if (((value >>> lsbPos) & 1) == 0) {
+                    result = bitPos;
+                    break;
+                }
+            }
+
+            MyByte[] ret = NumberConversion.intToByte(result, 4);
+            dest.setContent(ret, 4);
+
+            machine.getFlags().setCarry(false);
+            machine.getFlags().setOverflow(false);
+            machine.getFlags().setZero(result == p + s);  // Z=1 if bit not found (BNF)
+            machine.getFlags().setNegative(false);
         }
-
-        boolean bitNotFound = (result == p + s);
-
-        MyByte[] ret = NumberConversion.intToByte(result, 4);
-        op4.setContent(ret, 4);
-
-        // Per MI spec (page 35): FINDC has C=0, V=0, Z=BNF (bit not found), N=0
-        machine.getFlags().setCarry(false);
-        machine.getFlags().setOverflow(false);
-        machine.getFlags().setZero(bitNotFound);
-        machine.getFlags().setNegative(false);
     }
 
     /*
@@ -238,8 +265,6 @@ public class Findc extends Command {
      */
     @Override
     public String toString() {
-
-        return "FINDC " + op1.toString() + ", " + op2.toString() + ", " + op3.toString()
-                + ", " + op4.toString();
+        return "FINDC " + op1.toString() + ", " + op2.toString() + ", " + op3.toString() + ", " + op4.toString();
     }
 }

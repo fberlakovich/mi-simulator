@@ -39,6 +39,10 @@ public class Register {
     public Register(int nr, boolean isStack) {
         this(nr);
         this.isStack = isStack;
+        if (isStack) {
+            // Initialize stack pointer to top of memory (MEMORY_SIZE)
+            content = engine.MachineConstants.MEMORY_SIZE;
+        }
     }
 
     /**
@@ -82,8 +86,7 @@ public class Register {
                 ret[7] = next[3];
                 return ret;
             default:
-                System.out.println("Invalid access length: " + length);
-                return null;
+                throw new engine.InternalError("Invalid register access length: " + length);
         }
     }
 

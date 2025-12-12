@@ -107,7 +107,7 @@ public class MoveC extends Command {
                 opcode = new MyByte("AA");
                 break;
             default:
-                System.out.println("Fehler beim berechnen des OPCodes");
+                throw new engine.InternalError("Invalid MOVEC length: " + length);
         }
         int x = 1;
         byte[] opc1 = op1.encode();
