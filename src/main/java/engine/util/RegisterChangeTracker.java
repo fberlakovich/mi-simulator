@@ -3,7 +3,7 @@ package engine.util;
 import engine.events.MachineEvent;
 import engine.events.MachineEventListener;
 import engine.events.RegisterChangeEvent;
-import engine.Machine;
+import engine.MachineContext;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -16,7 +16,7 @@ import java.util.Set;
  *
  * Usage:
  * <pre>
- * RegisterChangeTracker tracker = new RegisterChangeTracker();
+ * RegisterChangeTracker tracker = new RegisterChangeTracker(machine);
  * // ... program runs, registers change ...
  * Set<Integer> changed = tracker.getChangedRegisters();
  * tracker.reset(); // Clear for next instruction/step
@@ -24,14 +24,20 @@ import java.util.Set;
  */
 public class RegisterChangeTracker implements MachineEventListener {
 
+    /** The machine context for event subscription */
+    private final MachineContext machine;
+
     /** Set of register indices that have been modified since last reset */
     private final Set<Integer> changedRegisters = new HashSet<>();
 
     /**
      * Creates a new tracker and subscribes to register events.
+     *
+     * @param machine the machine context
      */
-    public RegisterChangeTracker() {
-        Machine.getInstance().getEventBus().subscribe(RegisterChangeEvent.class, this);
+    public RegisterChangeTracker(MachineContext machine) {
+        this.machine = machine;
+        machine.getEventBus().subscribe(RegisterChangeEvent.class, this);
     }
 
     @Override
@@ -82,6 +88,6 @@ public class RegisterChangeTracker implements MachineEventListener {
      * Call this when the tracker is no longer needed.
      */
     public void cleanup() {
-        Machine.getInstance().getEventBus().unsubscribe(RegisterChangeEvent.class, this);
+        machine.getEventBus().unsubscribe(RegisterChangeEvent.class, this);
     }
 }

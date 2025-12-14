@@ -1,6 +1,7 @@
 package cli;
 
 import engine.Machine;
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.util.NumberConversion;
 import org.junit.Before;
@@ -21,18 +22,20 @@ public class QuietMachineTest {
 
     private ByteArrayOutputStream outputStream;
     private PrintStream printStream;
+    private MachineContext context;
 
     @Before
     public void setUp() {
         Machine.resetInstance();
+        context = Machine.getInstance();
         outputStream = new ByteArrayOutputStream();
         printStream = new PrintStream(outputStream);
     }
 
     @Test
     public void printRegisterState_allZeros_decimal() {
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
         machine.printRegisterState();
 
         String output = outputStream.toString();
@@ -51,8 +54,8 @@ public class QuietMachineTest {
 
     @Test
     public void printRegisterState_allZeros_hex() {
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, true);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, true);
         machine.printRegisterState();
 
         String output = outputStream.toString();
@@ -72,15 +75,15 @@ public class QuietMachineTest {
     @Test
     public void printRegisterState_withValues_decimal() {
         // Set some register values
-        Machine.getInstance().getRegisters().getRegister(0).setContent(
+        context.getRegisters().getRegister(0).setContent(
                 NumberConversion.intToByte(100, 4));
-        Machine.getInstance().getRegisters().getRegister(1).setContent(
+        context.getRegisters().getRegister(1).setContent(
                 NumberConversion.intToByte(-50, 4));
-        Machine.getInstance().getRegisters().getRegister(15).setContent(
+        context.getRegisters().getRegister(15).setContent(
                 NumberConversion.intToByte(256, 4));
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
         machine.printRegisterState();
 
         String output = outputStream.toString();
@@ -92,13 +95,13 @@ public class QuietMachineTest {
     @Test
     public void printRegisterState_withValues_hex() {
         // Set some register values
-        Machine.getInstance().getRegisters().getRegister(0).setContent(
+        context.getRegisters().getRegister(0).setContent(
                 NumberConversion.intToByte(255, 4));
-        Machine.getInstance().getRegisters().getRegister(1).setContent(
+        context.getRegisters().getRegister(1).setContent(
                 NumberConversion.intToByte(4096, 4));
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, true);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, true);
         machine.printRegisterState();
 
         String output = outputStream.toString();
@@ -109,10 +112,10 @@ public class QuietMachineTest {
     @Test
     public void executeNext_runsProgram() {
         // Load a simple program
-        MachineUtils.assembleAndLoad("SEG\nMOVE W I 42, R0\nHALT\nEND");
+        MachineUtils.assembleAndLoad(context, "SEG\nMOVE W I 42, R0\nHALT\nEND");
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
 
         // Execute MOVE instruction
         assertFalse(machine.hasHalted());
@@ -123,15 +126,15 @@ public class QuietMachineTest {
         assertTrue(machine.hasHalted());
 
         // Check register was set
-        assertEquals(42, Machine.getInstance().getRegisters().getRegister(0).getContentAsNumber(4));
+        assertEquals(42, context.getRegisters().getRegister(0).getContentAsNumber(4));
     }
 
     @Test
     public void hasHalted_tracksExecutionState() {
-        MachineUtils.assembleAndLoad("SEG\nHALT\nEND");
+        MachineUtils.assembleAndLoad(context, "SEG\nHALT\nEND");
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
         assertFalse(machine.hasHalted());
 
         machine.executeNext(); // HALT
@@ -142,10 +145,10 @@ public class QuietMachineTest {
     public void quietMachine_noOutputDuringExecution() {
         // QuietMachine should not output anything during execution,
         // only when printRegisterState is called
-        MachineUtils.assembleAndLoad("SEG\nMOVE W I 42, R0\nMOVE W I 100, R1\nHALT\nEND");
+        MachineUtils.assembleAndLoad(context, "SEG\nMOVE W I 42, R0\nMOVE W I 100, R1\nHALT\nEND");
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
 
         while (!machine.hasHalted()) {
             machine.executeNext();
@@ -161,10 +164,10 @@ public class QuietMachineTest {
 
     @Test
     public void printRegisterState_afterProgram_showsFinalState() {
-        MachineUtils.assembleAndLoad("SEG\nMOVE W I 42, R0\nADD W R0, R0, R1\nHALT\nEND");
+        MachineUtils.assembleAndLoad(context, "SEG\nMOVE W I 42, R0\nADD W R0, R0, R1\nHALT\nEND");
 
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        QuietMachine machine = new QuietMachine(runner, printStream, false);
+        ProgramRunner runner = context.createRunner();
+        QuietMachine machine = new QuietMachine(context, runner, printStream, false);
 
         while (!machine.hasHalted()) {
             machine.executeNext();

@@ -1,6 +1,6 @@
 package cli;
 
-import engine.Machine;
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.util.MemoryChangeTracker;
 import engine.state.Register;
@@ -17,6 +17,7 @@ import java.util.Set;
  * Works directly with ProgramRunner.
  */
 class PrintingMachine {
+    private final MachineContext machine;
     private final ProgramRunner runner;
     private final PrintStream out;
     private final boolean printHex;
@@ -28,11 +29,12 @@ class PrintingMachine {
     private boolean initialized;
     private boolean halted;
 
-    PrintingMachine(ProgramRunner runner, PrintStream out, boolean printHex) {
+    PrintingMachine(MachineContext machine, ProgramRunner runner, PrintStream out, boolean printHex) {
+        this.machine = machine;
         this.runner = runner;
         this.out = out;
         this.printHex = printHex;
-        this.memoryTracker = new MemoryChangeTracker();
+        this.memoryTracker = new MemoryChangeTracker(machine);
     }
 
     public boolean hasHalted() {
@@ -47,7 +49,7 @@ class PrintingMachine {
         if (!initialized) {
             Set<Integer> changedAddresses = memoryTracker.getChangedAddresses();
             for (Integer address : changedAddresses) {
-                previousMemValues.put(address, Machine.getInstance().getMemory().readByte(address));
+                previousMemValues.put(address, machine.getMemory().readByte(address));
             }
             fillCurrentFlags(previousFlags);
             initialized = true;
@@ -71,11 +73,11 @@ class PrintingMachine {
         return executed;
     }
 
-    private static void fillCurrentFlags(Map<String, Boolean> flags) {
-        flags.put("C", Machine.getInstance().getFlags().isCarry());
-        flags.put("N", Machine.getInstance().getFlags().isNegative());
-        flags.put("V", Machine.getInstance().getFlags().isOverflow());
-        flags.put("Z", Machine.getInstance().getFlags().isZero());
+    private void fillCurrentFlags(Map<String, Boolean> flags) {
+        flags.put("C", machine.getFlags().isCarry());
+        flags.put("N", machine.getFlags().isNegative());
+        flags.put("V", machine.getFlags().isOverflow());
+        flags.put("Z", machine.getFlags().isZero());
     }
 
     static class Separator {
@@ -101,7 +103,7 @@ class PrintingMachine {
         fillCurrentFlags(flags);
         Separator separator = new Separator(out);
         for (String flag : flags.keySet()) {
-            if (flags.get(flag) != previousFlags.get(flag)) {
+            if (!java.util.Objects.equals(flags.get(flag), previousFlags.get(flag))) {
                 String format;
                 if (!printHex) {
                     format = "%s: %d -> %d";
@@ -132,7 +134,7 @@ class PrintingMachine {
         java.util.Collections.sort(sortedAddresses);
 
         for (Integer address : sortedAddresses) {
-            byte currentByte = Machine.getInstance().getMemory().readByte(address);
+            byte currentByte = machine.getMemory().readByte(address);
             int currentValue = currentByte & 0xFF;
             int previousValue = previousMemValues.containsKey(address) ? (previousMemValues.get(address) & 0xFF) : 0;
 
@@ -164,7 +166,7 @@ class PrintingMachine {
     private void printRegisterValues(int[] previousRegValues) {
         Separator separator = new Separator(out);
         for (int i = 0; i < REGISTER_COUNT; i++) {
-            Register register = Machine.getInstance().getRegisters().getRegister(i);
+            Register register = machine.getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             if (previousRegValues[i] == regValue && regValue == 0)
                 continue;

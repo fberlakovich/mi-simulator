@@ -3,10 +3,11 @@
  */
 package gui;
 
-import Exceptions.NoCommandException;
-import engine.Machine;
+import engine.exceptions.NoCommandException;
+import engine.MachineContext;
 
 import javax.swing.*;
+import java.awt.*;
 
 /**
  * The Class MyLabel.Die Klasse repräsentiert ein Label, welches Klickbar ist
@@ -24,6 +25,12 @@ public class LineNumberLabel extends JLabel {
     /** Icons */
     private ImageIcon icon1, icon2;
 
+    /** Machine context for breakpoint access */
+    private final MachineContext machine;
+
+    /** Parent component for error dialogs */
+    private final Component dialogParent;
+
     /**
      * Instaziiert ein neues Label
      *
@@ -33,9 +40,15 @@ public class LineNumberLabel extends JLabel {
      *            Icon1
      * @param icon2
      *            Icon2
+     * @param machine
+     *            Machine context
+     * @param dialogParent
+     *            Parent component for error dialogs
      */
-    public LineNumberLabel(String name, ImageIcon icon1, ImageIcon icon2) {
+    public LineNumberLabel(String name, ImageIcon icon1, ImageIcon icon2, MachineContext machine, Component dialogParent) {
         super(name);
+        this.machine = machine;
+        this.dialogParent = dialogParent;
         setOpaque(true);
         this.icon1 = icon1;
         this.icon2 = icon2;
@@ -67,11 +80,11 @@ public class LineNumberLabel extends JLabel {
     public void setStatus(boolean status) {
         this.status = status;
         try {
-            Machine.getInstance().getProgram().setBreakPoint(Integer.parseInt(getText()), status);
+            machine.getProgram().setBreakPoint(Integer.parseInt(getText()), status);
             setText(getText());
             setIcon(status ? icon1 : icon2);
         } catch (NoCommandException e) {
-            JOptionPane.showMessageDialog(GuiState.getFrame(),
+            JOptionPane.showMessageDialog(dialogParent,
                     CONSTANTS.ERROR_SETBREAKPOINT_NOT_EXECUTABLE_INSTR,
                     CONSTANTS.ERROR_SETBREAKPOINT_TITEL,
                     JOptionPane.ERROR_MESSAGE);

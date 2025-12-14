@@ -6,6 +6,7 @@ import engine.events.MachineEventListener;
 import engine.events.MemoryAccessErrorEvent;
 import engine.ProgramRunner;
 import engine.Machine;
+import engine.MachineContext;
 import engine.program.Program;
 import engine.util.MemoryChangeTracker;
 import engine.state.MyByte;
@@ -112,11 +113,6 @@ public class Window extends javax.swing.JFrame {
     private JMenuBar jMenuBar1;
 
     /**
-     * Quelltextscanner
-     */
-    private Scanner scanner;
-
-    /**
      * Anzeigebereich für den Speicher
      */
     private MemoryPanel memory;
@@ -143,19 +139,34 @@ public class Window extends javax.swing.JFrame {
 
 
     /**
-     * Nächster befehl
-     */
-    private Command nex = null;
-
-    /**
-     * Program execution thread.
-     */
-    private ProgramRunner runner;
-
-    /**
      * Memory change tracker for highlighting.
      */
     private MemoryChangeTracker memoryTracker;
+
+    /**
+     * Program execution controller.
+     */
+    private ProgramController programController;
+
+    /**
+     * Machine context for state access and modification.
+     */
+    private MachineContext machine;
+
+    /**
+     * Display settings for number formats and syntax highlighting.
+     */
+    private final DisplaySettings displaySettings = new DisplaySettings();
+
+    /**
+     * Label window for showing program labels.
+     */
+    private final LabelWindow labelWindow = new LabelWindow();
+
+    /**
+     * Memory view for visualization.
+     */
+    private MemoryView memoryView;
 
     /**
      * File manager for handling file operations.
@@ -258,7 +269,7 @@ public class Window extends javax.swing.JFrame {
      * @return program runner
      */
     public ProgramRunner getRunner() {
-        return runner;
+        return programController != null ? programController.getRunner() : null;
     }
 
     /**
@@ -295,9 +306,11 @@ public class Window extends javax.swing.JFrame {
 
         codePanel.setLayout(new BoxLayout(codePanel, BoxLayout.Y_AXIS));
         setTitle(CONSTANTS.TITLE + " - unbenannt.mi");
-        GuiState.setFrame(this);
-        Machine.resetInstance();
-        GuiState.resetMemoryView();
+        machine = Machine.getInstance();
+        memoryTracker = new MemoryChangeTracker(machine);
+        programController = new ProgramController(machine, memoryTracker, createExecutionCallback());
+        machine.reset();
+        memoryView = new MemoryView(machine, memoryTracker);
 
         memoryPanel = new JPanel();
         memoryPanel.setLayout(new BoxLayout(memoryPanel, BoxLayout.Y_AXIS));
@@ -306,12 +319,11 @@ public class Window extends javax.swing.JFrame {
         {
             input_panel = new JPanel();
             input_panel.setLayout(new BorderLayout());
-            numberedPane = new NumberedPane();
+            numberedPane = new NumberedPane(machine, displaySettings, this::textChanged);
             input_panel.add(numberedPane, BorderLayout.WEST);
             input_panel.add(numberedPane.scrollPane, BorderLayout.CENTER);
             codePanel.add(input_panel);
             text = numberedPane.getTextPane();
-            GuiState.setText(text);
 
             new DropTarget(text, new DropTargetAdapter() {
 
@@ -330,7 +342,7 @@ public class Window extends javax.swing.JFrame {
                                         text.setCaretPosition(0);
                                         disableExecutionButtons();
                                         updateUI();
-                                        Machine.resetInstance();
+                                        machine.reset();
                                         reset_Title();
                                     } else if (result.getErrorMessage() != null) {
                                         error.setText(result.getErrorMessage());
@@ -346,7 +358,7 @@ public class Window extends javax.swing.JFrame {
 
         }
         {
-            registerPanel = new RegistersPanel();
+            registerPanel = new RegistersPanel(machine, displaySettings, this::updateUI);
             ober_panel.add(registerPanel);
             ober_panel.add(codePanel);
             ober_panel.add(memoryPanel);
@@ -387,7 +399,7 @@ public class Window extends javax.swing.JFrame {
                         fileManager.newFile();
                         reset_Title();
                         text.setText("");
-                        Machine.resetInstance();
+                        machine.reset();
                         disableExecutionButtons();
                         updateUI();
                     }
@@ -406,7 +418,7 @@ public class Window extends javax.swing.JFrame {
                             text.setCaretPosition(0);
                             disableExecutionButtons();
                             updateUI();
-                            Machine.resetInstance();
+                            machine.reset();
                             reset_Title();
                         } else if (result.getErrorMessage() != null) {
                             error.setText(result.getErrorMessage());
@@ -496,8 +508,8 @@ public class Window extends javax.swing.JFrame {
                 shlMenuItem = new JCheckBoxMenuItem();
                 shlMenuItem.setSelected(true);
                 shlMenuItem.addActionListener(e -> {
-                    GuiState.setSyntaxHighlighting(shlMenuItem.getState());
-                    GuiState.getText().doHighLighting();
+                    displaySettings.setSyntaxHighlighting(shlMenuItem.getState());
+                    text.doHighLighting();
                 });
                 settings_menu.add(shlMenuItem);
                 shlMenuItem.setText("Syntaxhighlighting");
@@ -505,18 +517,17 @@ public class Window extends javax.swing.JFrame {
                 label_windowMenuItem = new JCheckBoxMenuItem();
                 label_windowMenuItem.setSelected(false);
                 label_windowMenuItem.addActionListener(e -> {
-                    GuiState.setLabelWindowVisible(label_windowMenuItem.getState());
-                    if (Machine.getInstance().isCompiled()) {
-                        GuiState.getLabelWindow().setVisible(GuiState.isLabelWindowVisible());
+                    if (machine.isCompiled()) {
+                        labelWindow.setVisible(label_windowMenuItem.getState());
                     }
                 });
                 settings_menu.add(label_windowMenuItem);
                 label_windowMenuItem.setText("Fenster mit Labeladressen");
 
                 JCheckBoxMenuItem showLeadingZerosItem = new JCheckBoxMenuItem();
-                showLeadingZerosItem.setSelected(GuiState.isShowLeadingZeros());
+                showLeadingZerosItem.setSelected(displaySettings.isShowLeadingZeros());
                 showLeadingZerosItem.addActionListener(e -> {
-                    GuiState.setShowLeadingZeros(showLeadingZerosItem.getState());
+                    displaySettings.setShowLeadingZeros(showLeadingZerosItem.getState());
                     updateUI();
                 });
                 settings_menu.add(showLeadingZerosItem);
@@ -586,37 +597,21 @@ public class Window extends javax.swing.JFrame {
      */
     private void handleAssemble() {
         numberedPane.reset();
-        Machine.resetInstance();
-        scanner = new Scanner(false);
-        scanner.init(text.getText());
+        ProgramController.AssembleResult result = programController.assemble(text.getText());
 
-        Parser p = new Parser(Machine.getInstance(), scanner);
-        p.start();
+        if (result.isSuccess()) {
+            text.highlightNextCommand(programController.getRunner(), machine);
+            error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
 
-        Program program = p.getProgramm();
-        if (p.eval()) {
-            if (program.compile()) {
-                runner = Machine.getInstance().createRunner();
-                nex = runner.readNextCommand();
-                text.highlightNextCommand();
-
-                setupExecutionListener();
-                error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
-
-                GuiState.getLabelWindow().setContent(p.getLabels());
-                GuiState.getLabelWindow().setVisible(GuiState.isLabelWindowVisible());
-                GuiState.getLabelWindow().pack();
-            } else {
-                error.setText(CONSTANTS.ASSEMBLE_UNSUCCESSFUL);
-            }
+            labelWindow.setContent(result.getLabels());
+            labelWindow.setVisible(label_windowMenuItem.isSelected());
+            labelWindow.pack();
         } else {
-            error.setText(p.getErrorMeassge().toString());
+            error.setText(result.getErrorMessage());
         }
 
         updateUI();
-        if (p.getErrorMeassge().getErrorMessage().length() > 0) {
-            error.setText(p.getErrorMeassge().getErrorMessage());
-        }
+        Program program = result.getProgram();
         text.setCompiled(program.isCompiled());
         buttonPanel.getBtnRun().setEnabled(program.isCompiled());
         buttonPanel.getBtnStep().setEnabled(program.isCompiled());
@@ -628,13 +623,8 @@ public class Window extends javax.swing.JFrame {
      */
     private void handleRun() {
         registerPanel.resetChangedFlags();
-        if (memoryTracker != null) {
-            memoryTracker.reset();
-        }
-        runner = Machine.getInstance().createRunner();
-        runner.startProgram();
-
-        memory = GuiState.getMemoryView().getMemoryTable();
+        programController.run();
+        memory = memoryView.getMemoryTable();
     }
 
     /**
@@ -642,14 +632,7 @@ public class Window extends javax.swing.JFrame {
      */
     private void handleStep() {
         registerPanel.resetChangedFlags();
-        if (memoryTracker != null) {
-            memoryTracker.reset();
-        }
-
-        if (runner == null || !runner.isAlive()) {
-            runner = Machine.getInstance().createRunner();
-        }
-        boolean hasMore = runner.step();
+        boolean hasMore = programController.step();
 
         if (!hasMore) {
             buttonPanel.getBtnRun().setEnabled(false);
@@ -657,7 +640,7 @@ public class Window extends javax.swing.JFrame {
             error.setText("Programmende");
         }
 
-        text.highlightNextCommand();
+        text.highlightNextCommand(programController.getRunner(), machine);
         updateUI();
     }
 
@@ -665,11 +648,9 @@ public class Window extends javax.swing.JFrame {
      * Handles the Stop button: halts program execution.
      */
     private void handleStop() {
-        if (runner != null) {
-            runner.stopProgram();
-        }
-        text.highlightNextCommand();
-        text.highlightNextCommand();
+        programController.stop();
+        text.highlightNextCommand(programController.getRunner(), machine);
+        text.highlightNextCommand(programController.getRunner(), machine);
 
         buttonPanel.getBtnStop().setEnabled(false);
     }
@@ -678,17 +659,8 @@ public class Window extends javax.swing.JFrame {
      * Handles the Restart button: resets machine state and reloads program.
      */
     private void handleRestart() {
-        if (runner != null) {
-            runner.stopProgram();
-        }
-        Program savedProgram = Machine.getInstance().getProgram();
-        Machine.resetInstance();
-        Machine.getInstance().setProgram(savedProgram);
-        Machine.getInstance().getMemory().setContent(0,
-                MyByte.fromByteArray(savedProgram.encode()));
-        runner = Machine.getInstance().createRunner();
-        nex = runner.readNextCommand();
-        text.highlightNextCommand();
+        programController.restart();
+        text.highlightNextCommand(programController.getRunner(), machine);
         error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
         buttonPanel.getBtnRun().setEnabled(true);
         buttonPanel.getBtnStep().setEnabled(true);
@@ -709,20 +681,17 @@ public class Window extends javax.swing.JFrame {
      * Wird ausgefuehrt, wenn eine Veränderung des Quelltextes festgestellt wird
      */
     public void textChanged() {
-        if (runner != null) {
-            runner.stopProgram();
-            runner = null;
-        }
+        programController.clearRunner();
 
         numberedPane.reset();
-        GuiState.getLabelWindow().setVisible(false);
+        labelWindow.setVisible(false);
         error.setText("");
         text.setCompiled(false);
         buttonPanel.getBtnRun().setEnabled(false);
         buttonPanel.getBtnStep().setEnabled(false);
         buttonPanel.getBtnStop().setEnabled(false);
         buttonPanel.getBtnRestart().setEnabled(false);
-        Machine.resetInstance();
+        machine.reset();
         updateUI();
     }
 
@@ -730,8 +699,9 @@ public class Window extends javax.swing.JFrame {
      * Aktualisiert die grafische Oberflaeche
      */
     public void updateUI() {
-        if (Machine.getInstance().getNextCommand() != null
-                && Machine.getInstance().getNextCommand() instanceof Halt) {
+        ProgramRunner runner = programController.getRunner();
+        Command nextCommand = runner != null ? runner.getNextCommand() : null;
+        if (nextCommand != null && nextCommand instanceof Halt) {
             error.setText(CONSTANTS.PROGRAM_END);
             buttonPanel.getBtnRun().setEnabled(false);
             buttonPanel.getBtnStep().setEnabled(false);
@@ -741,12 +711,12 @@ public class Window extends javax.swing.JFrame {
 
         int val = (memory == null) ? 0 : memory.getVerticalScrollBar().getValue();
         int val2 = (stack == null) ? 0 : stack.getVerticalScrollBar().getValue();
-        flagsPanel = new FlagsPanel(Machine.getInstance().getFlags());
+        flagsPanel = new FlagsPanel(machine.getFlags());
 
         JPanel instr_panel = new JPanel();
-        if (Machine.getInstance().isCompiled()) {
-            JLabel instr = new JLabel(" " + (Machine.getInstance().getNextCommand() != null ?
-                    Machine.getInstance().getNextCommand().toString() :
+        if (machine.isCompiled()) {
+            JLabel instr = new JLabel(" " + (nextCommand != null ?
+                    nextCommand.toString() :
                     "no Instr"));
             instr.setFont(CONSTANTS.FONT);
             instr.setForeground(CONSTANTS.DARK_GREY);
@@ -761,14 +731,14 @@ public class Window extends javax.swing.JFrame {
         flag_panel.add(flagsPanel);
         flag_panel.add(instr_panel);
 
-        text.highlightNextCommand();
+        text.highlightNextCommand(runner, machine);
 
         memoryPanel.removeAll();
-        memory = GuiState.getMemoryView().getMemoryTable();
+        memory = memoryView.getMemoryTable();
         memory.setSize(CONSTANTS.MEMORY_WIDTH, CONSTANTS.MEMORY_HEIGHT);
         memory.getVerticalScrollBar().setValue(val);
         memory.getVerticalScrollBar().setValue(val);
-        stack = GuiState.getMemoryView().getStackTable();
+        stack = memoryView.getStackTable();
         stack.setSize(CONSTANTS.STACK_WIDTH, CONSTANTS.STACK_HEIGHT);
         stack.getVerticalScrollBar().setValue(val2);
         stack.getVerticalScrollBar().setValue(val2);
@@ -791,81 +761,79 @@ public class Window extends javax.swing.JFrame {
     }
 
     /**
-     * Sets up the execution event listener for program execution.
+     * Creates the execution callback for ProgramController.
      */
-    private void setupExecutionListener() {
-        // Create memory tracker if not already created
-        if (memoryTracker == null) {
-            memoryTracker = new MemoryChangeTracker();
-        }
-
-        // Subscribe to execution events
-        Machine.getInstance().getEventBus().subscribe(ExecutionEvent.class, new MachineEventListener() {
+    private ProgramController.ExecutionCallback createExecutionCallback() {
+        return new ProgramController.ExecutionCallback() {
             @Override
-            public void onEvent(MachineEvent event) {
-                if (event instanceof ExecutionEvent) {
-                    ExecutionEvent execEvent = (ExecutionEvent) event;
-                    SwingUtilities.invokeLater(() -> handleExecutionEvent(execEvent));
-                }
+            public void onAssembleSuccess(Program program, java.util.ArrayList<engine.program.Label> labels) {
+                // Handled in handleAssemble
             }
-        });
 
-        // Subscribe to memory access errors
-        Machine.getInstance().getEventBus().subscribe(MemoryAccessErrorEvent.class, new MachineEventListener() {
             @Override
-            public void onEvent(MachineEvent event) {
-                if (event instanceof MemoryAccessErrorEvent) {
-                    MemoryAccessErrorEvent errorEvent = (MemoryAccessErrorEvent) event;
-                    SwingUtilities.invokeLater(() -> handleMemoryAccessError(errorEvent));
-                }
+            public void onAssembleFailure(String errorMessage) {
+                // Handled in handleAssemble
             }
-        });
-    }
 
-    /**
-     * Handles memory access errors by displaying an error dialog.
-     */
-    private void handleMemoryAccessError(MemoryAccessErrorEvent event) {
-        String message = String.format("Memory access error at address 0x%X: %s",
-                event.getAddress(), event.getType());
-        JOptionPane.showMessageDialog(this, message, "Memory Error", JOptionPane.ERROR_MESSAGE);
-    }
+            @Override
+            public void onExecutionStarted() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(false);
+                    buttonPanel.getBtnStep().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(false);
+                });
+            }
 
-    /**
-     * Handles execution events from the program runner.
-     */
-    private void handleExecutionEvent(ExecutionEvent event) {
-        switch (event.getType()) {
-            case STARTED:
-                buttonPanel.getBtnStop().setEnabled(true);
-                buttonPanel.getBtnRun().setEnabled(false);
-                buttonPanel.getBtnStep().setEnabled(false);
-                buttonPanel.getBtnRestart().setEnabled(false);
-                break;
+            @Override
+            public void onExecutionStopped() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(true);
+                    buttonPanel.getBtnStep().setEnabled(true);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
 
-            case STOPPED:
-            case BREAKPOINT_HIT:
-                buttonPanel.getBtnStop().setEnabled(false);
-                buttonPanel.getBtnRestart().setEnabled(true);
-                buttonPanel.getBtnRun().setEnabled(true);
-                buttonPanel.getBtnStep().setEnabled(true);
-                text.highlightNextCommand();
-                updateUI();
-                break;
+            @Override
+            public void onBreakpointHit() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(true);
+                    buttonPanel.getBtnStep().setEnabled(true);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
 
-            case PROGRAM_ENDED:
-                buttonPanel.getBtnStop().setEnabled(false);
-                buttonPanel.getBtnRestart().setEnabled(true);
-                buttonPanel.getBtnRun().setEnabled(false);
-                buttonPanel.getBtnStep().setEnabled(false);
-                text.highlightNextCommand();
-                updateUI();
-                break;
+            @Override
+            public void onProgramEnded() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(false);
+                    buttonPanel.getBtnStep().setEnabled(false);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
 
-            case STEP_COMPLETED:
-                updateUI();
-                break;
-        }
+            @Override
+            public void onStepCompleted(boolean hasMore) {
+                // Handled in handleStep
+            }
+
+            @Override
+            public void onMemoryAccessError(int address, String type) {
+                SwingUtilities.invokeLater(() -> {
+                    String message = String.format("Memory access error at address 0x%X: %s", address, type);
+                    JOptionPane.showMessageDialog(Window.this, message, "Memory Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        };
     }
 
     /**

@@ -16,10 +16,10 @@ public class Scanner {
     private int[] table;
 
     /** Row index for token type in table */
-    private int zeile;
+    private int tokenTypeColumn;
 
     /** Table width (columns) */
-    private int breite;
+    private int tableWidth;
 
     /** Current position in table setup */
     private int pos;
@@ -28,7 +28,7 @@ public class Scanner {
     private String input;
 
     /** EQU definitions for macro substitution */
-    private ArrayList<Equal> equals = new ArrayList<Equal>();
+    private ArrayList<Equal> equDefinitions = new ArrayList<Equal>();
 
     /** Iterator for current EQU expansion */
     private Iterator<Token> iter = null;
@@ -40,7 +40,7 @@ public class Scanner {
     private int position = 0;
 
     /** Previous position (start of current token) */
-    private int altpos = 0;
+    private int tokenStart = 0;
 
     /** Last accepted position */
     private int last = 0;
@@ -59,6 +59,406 @@ public class Scanner {
 
     /** Scanning for syntax highlighting? */
     private boolean highlight;
+
+    // =====================================================
+    // State Transition Table Helper Methods
+    // =====================================================
+
+    /**
+     * Sets a single character transition in the state table.
+     */
+    private void setTransition(int stateNum, int charCode, int targetState) {
+        table[stateNum * tableWidth + charCode] = targetState;
+    }
+
+    /**
+     * Sets transitions for a character range in a single state.
+     */
+    private void setRangeTransition(int stateNum, char fromCh, char toCh, int targetState) {
+        for (int j = fromCh; j <= toCh; j++) {
+            table[stateNum * tableWidth + j] = targetState;
+        }
+    }
+
+    /**
+     * Sets the token type for an accepting state.
+     */
+    private void setTokenType(int stateNum, int tokenType) {
+        table[stateNum * tableWidth + tokenTypeColumn] = tokenType;
+    }
+
+    /**
+     * Fills all 256 character transitions for a state with a single target.
+     */
+    private void fillState(int stateNum, int targetState) {
+        for (int j = 0; j <= 255; j++) {
+            table[stateNum * tableWidth + j] = targetState;
+        }
+    }
+
+    /**
+     * Sets alphanumeric transitions (A-Z, a-z, 0-9, _) for a range of states.
+     */
+    private void setAlphanumericTransitions(int startState, int endState, int targetState) {
+        for (int i = startState; i <= endState; i++) {
+            setRangeTransition(i, 'A', 'Z', targetState);
+            setRangeTransition(i, 'a', 'z', targetState);
+            setRangeTransition(i, '0', '9', targetState);
+            setTransition(i, '_', targetState);
+        }
+    }
+
+    /**
+     * Sets digit transitions (0-9) for multiple states to a single target.
+     */
+    private void setDigitTransitions(int[] states, int targetState) {
+        for (int stateNum : states) {
+            setRangeTransition(stateNum, '0', '9', targetState);
+        }
+    }
+
+    /**
+     * Sets hex digit transitions (A-F, 0-9) for multiple states to a single target.
+     */
+    private void setHexDigitTransitions(int[] states, int targetState) {
+        for (int stateNum : states) {
+            setRangeTransition(stateNum, 'A', 'F', targetState);
+            setRangeTransition(stateNum, '0', '9', targetState);
+        }
+    }
+
+    /**
+     * Sets a state row with transitions and token type, then advances pos.
+     * @param transitions pairs of (char, targetState), e.g. 'A', 17, 'B', 72
+     * @param tokenType the token type for this accepting state (0 = non-accepting)
+     */
+    private void initState(int tokenType, int... transitions) {
+        for (int i = 0; i < transitions.length; i += 2) {
+            table[pos + transitions[i]] = transitions[i + 1];
+        }
+        table[pos + tokenTypeColumn] = tokenType;
+        pos += tableWidth;
+    }
+
+    /**
+     * Sets a state row for a NAME with label possibility (colon -> 155).
+     */
+    private void initNameState(int... transitions) {
+        for (int i = 0; i < transitions.length; i += 2) {
+            table[pos + transitions[i]] = transitions[i + 1];
+        }
+        table[pos + ':'] = 155;
+        table[pos + tokenTypeColumn] = TOKEN_NAME;
+        pos += tableWidth;
+    }
+
+    /**
+     * Sets a simple accepting state with just a token type.
+     */
+    private void initAcceptState(int tokenType) {
+        table[pos + tokenTypeColumn] = tokenType;
+        pos += tableWidth;
+    }
+
+    // State table initialization helper methods (split from init() to reduce method length)
+
+    private void initStateTableStructure() {
+        // Create state transition table (257 columns x 157 rows)
+        table = new int[(256 + 1) * (157)];
+        tableWidth = 257;
+        tokenTypeColumn = 256;
+
+        // Default: transition to error state 111
+        for (int j = 0; j <= 255; j++) {
+            table[tableWidth + j] = 111;
+        }
+    }
+
+    private void initBaseTransitions() {
+        // Initialize NAME state transitions (state 106)
+        setAlphanumericTransitions(1, 70, 106);
+        setAlphanumericTransitions(98, 100, 106);
+        setAlphanumericTransitions(106, 108, 106);
+        setAlphanumericTransitions(112, 154, 106);
+        for (int state : new int[]{72, 76, 110}) {
+            setAlphanumericTransitions(state, state, 106);
+        }
+
+        // STRING state transitions
+        fillState(85, 86);
+        fillState(86, 86);
+
+        // COMMENT state transitions
+        fillState(88, 88);
+
+        // HEX number transitions
+        setHexDigitTransitions(new int[]{77, 78}, 78);
+
+        // NUMBER transitions
+        setDigitTransitions(new int[]{1, 69, 70, 71}, 71);
+
+        // FLOAT transitions
+        setDigitTransitions(new int[]{80, 81}, 81);
+        setDigitTransitions(new int[]{83, 84}, 84);
+    }
+
+    private void initStartState() {
+        // State 1 - Start state
+        pos = tableWidth;
+        table[pos + 0] = 101;     // #0 -> whitespace
+        table[pos + 9] = 101;     // TAB
+        table[pos + 26] = 103;    // EOF
+        table[pos + 10] = 102;    // LF
+        table[pos + 13] = 102;    // CR
+        table[pos + 32] = 101;    // Space
+        table[pos + '-'] = 70;
+        table[pos + '_'] = 106;
+        table[pos + '+'] = 69;
+        table[pos + '!'] = 93;
+        table[pos + '/'] = 96;
+        table[pos + ','] = 94;
+        table[pos + ':'] = 92;
+        table[pos + ';'] = 95;
+        table[pos + '='] = 109;
+        table[pos + 39] = 85;     // Single quote -> string
+        table[pos + '('] = 90;
+        table[pos + ')'] = 91;
+        table[pos + '*'] = 97;
+        // Letter transitions to keyword start states
+        table[pos + 'A'] = 17;    // ADD, ANDNOT
+        table[pos + 'B'] = 72;    // B (type)
+        table[pos + 'C'] = 53;    // CALL, CLEAR, CMP, CONV
+        table[pos + 'D'] = 26;    // D (type), DD, DIV
+        table[pos + 'E'] = 5;     // END, EQU, EXT, EXTS
+        table[pos + 'F'] = 100;   // F (type), FINDC, FINDS
+        table[pos + 'H'] = 76;    // H (type), HALT
+        table[pos + 'I'] = 98;    // I (immediate), INS
+        table[pos + 'J'] = 35;    // Jump instructions
+        table[pos + 'M'] = 22;    // MOVE, MULT
+        table[pos + 'O'] = 112;   // OR
+        table[pos + 'P'] = 58;    // POPR, PUSHR
+        table[pos + 'R'] = 10;    // R (register), RES, RET, ROT
+        table[pos + 'S'] = 2;     // SEG, SH, SUB, SBPSW
+        table[pos + 'W'] = 99;    // W (type)
+        table[pos + 'X'] = 114;   // XOR
+        table[pos + tokenTypeColumn] = 0;
+        pos += tableWidth;
+    }
+
+    private void initSegEquResStates() {
+        // States 2-16: SEG, EQU, RES, RESERVE keywords
+        initState(TOKEN_NAME, 'B', 151, 'E', 3, 'H', 66, 'U', 20, ':', 131);  // S -> SBPSW, SEG, SH, SUB
+        initNameState('G', 4);                                                  // SE
+        initAcceptState(TOKEN_SEG);                                             // SEG
+        initNameState('N', 107, 'Q', 6, 'X', 131);                              // E -> END, EQU, EXT
+        initNameState('U', 7);                                                  // EQ
+        initState(TOKEN_EQU, 'A', 8);                                           // EQU (also EQUAL)
+        initNameState('L', 9);                                                  // EQUA
+        initAcceptState(TOKEN_EQU);                                             // EQUAL
+
+        // R states (10-16): RES, RESERVE, RET, ROT, Register
+        table[pos + '0'] = 105; table[pos + '1'] = 105; table[pos + '2'] = 105;
+        table[pos + '3'] = 105; table[pos + '4'] = 105; table[pos + '5'] = 105;
+        table[pos + '6'] = 105; table[pos + '7'] = 105; table[pos + '8'] = 105;
+        table[pos + '9'] = 105; table[pos + '1'] = 104;
+        table[pos + 'E'] = 11; table[pos + 'O'] = 67; table[pos + ':'] = 155;
+        table[pos + tokenTypeColumn] = TOKEN_NAME;
+        pos += tableWidth;
+
+        initNameState('S', 12, 'T', 57);                // RE -> RES, RET
+        initState(TOKEN_RES, 'E', 13);                  // RES (also RESERVE)
+        initNameState('R', 14);                         // RESE
+        initNameState('V', 15);                         // RESER
+        initNameState('E', 16);                         // RESERV
+        initAcceptState(TOKEN_RES);                     // RESERVE
+    }
+
+    private void initArithmeticMoveStates() {
+        // States 17-34: ADD, SUB, MULT, DIV, MOVE variants
+        initNameState('D', 18, 'N', 117);              // A -> ADD, ANDNOT
+        initNameState('D', 19);                        // AD
+        initAcceptState(TOKEN_ADD);                    // ADD
+        initNameState('B', 21);                        // SU
+        initAcceptState(TOKEN_SUB);                    // SUB
+        initNameState('O', 29, 'U', 23);              // M -> MOVE, MULT
+        initNameState('L', 24);                        // MU
+        initNameState('T', 25);                        // MUL
+        initAcceptState(TOKEN_MULT);                   // MULT
+        initState(TOKEN_D, 'D', 110, 'I', 27);        // D -> D(type), DD, DIV
+        initNameState('V', 28);                        // DI
+        initAcceptState(TOKEN_DIV);                    // DIV
+        initNameState('V', 30);                        // MO
+        initNameState('E', 31);                        // MOV
+        initState(TOKEN_MOVE, 'A', 32, 'C', 33, 'N', 34);  // MOVE -> MOVEA, MOVEC, MOVEN
+        initAcceptState(TOKEN_MOVEA);                  // MOVEA
+        initAcceptState(TOKEN_MOVEC);                  // MOVEC
+        initAcceptState(TOKEN_MOVEN);                  // MOVEN
+    }
+
+    private void initJumpStates() {
+        // States 35-52: All jump instructions
+        initNameState('B', 141, 'C', 46, 'E', 36, 'G', 40, 'L', 43, 'N', 38, 'U', 48, 'V', 51);
+        initNameState('Q', 37);                        // JE
+        initAcceptState(TOKEN_JEQ);                    // JEQ
+        initNameState('C', 47, 'E', 39, 'V', 52);     // JN -> JNC, JNE, JNV
+        initAcceptState(TOKEN_JNE);                    // JNE
+        initNameState('E', 42, 'T', 41);              // JG -> JGE, JGT
+        initAcceptState(TOKEN_JGT);                    // JGT
+        initAcceptState(TOKEN_JGE);                    // JGE
+        initNameState('E', 45, 'T', 44);              // JL -> JLE, JLT
+        initAcceptState(TOKEN_JLT);                    // JLT
+        initAcceptState(TOKEN_JLE);                    // JLE
+        initAcceptState(TOKEN_JC);                     // JC
+        initAcceptState(TOKEN_JNC);                    // JNC
+        initNameState('M', 49);                        // JU
+        initNameState('P', 50);                        // JUM
+        initAcceptState(TOKEN_JUMP);                   // JUMP
+        initAcceptState(TOKEN_JV);                     // JV
+        initAcceptState(TOKEN_JNV);                    // JNV
+    }
+
+    private void initCallRetPushPopStates() {
+        // States 53-68: CALL, CMP, CLEAR, CONV, POPR, PUSHR, SH, ROT
+        initNameState('A', 54, 'L', 122, 'M', 126, 'O', 148);  // C -> CALL, CLEAR, CMP, CONV
+        initNameState('L', 55);                        // CA
+        initNameState('L', 56);                        // CAL
+        initAcceptState(TOKEN_CALL);                   // CALL
+        initAcceptState(TOKEN_RET);                    // RET
+        initNameState('O', 59, 'U', 62);              // P -> POPR, PUSHR
+        initNameState('P', 60);                        // PO
+        initNameState('R', 61);                        // POP
+        initAcceptState(TOKEN_POPR);                   // POPR
+        initNameState('S', 63);                        // PU
+        initNameState('H', 64);                        // PUS
+        initNameState('R', 65);                        // PUSH
+        initAcceptState(TOKEN_PUSHR);                  // PUSHR
+        initAcceptState(TOKEN_SH);                     // SH
+        initNameState('T', 68);                        // RO
+        initAcceptState(TOKEN_ROT);                    // ROT
+    }
+
+    private void initNumberStates() {
+        // States 69-84: NUMBER, FLOAT, BIN, HEX
+        initAcceptState(TOKEN_PLUS);                   // +
+        initState(TOKEN_MINUS, '-', 88);              // - (comment if --)
+        initState(TOKEN_NUMBER, '.', 80, 'E', 83);    // Number, float continues
+        initState(TOKEN_B, 39, 73);                   // B -> B' (binary)
+        initState(101, '0', 74, '1', 74);             // B' -> binary digits
+        initState(101, 39, 75, '0', 74, '1', 74);     // Binary digits
+        initAcceptState(TOKEN_BIN);                    // Binary number complete
+        initState(TOKEN_H, 39, 77, 'A', 128);         // H -> H' (hex) or HALT
+        initState(102);                                // H' error state
+        initState(102, 39, 79);                       // Hex digits, ' ends
+        initAcceptState(TOKEN_HEX);                    // Hex number complete
+        initState(103);                                // Float mantissa error
+        initState(TOKEN_FLOAT, 'E', 83);              // Float mantissa ok
+        initAcceptState(TOKEN_FLOAT);                  // Float complete
+        initState(103, '-', 84, '+', 84);             // Float exponent sign
+        initAcceptState(TOKEN_FLOAT);                  // Float exponent digits
+    }
+
+    private void initStringCommentPunctuationStates() {
+        // States 85-97: STRING, COMMENT, punctuation
+        initState(104, 26, 0, 10, 0, 13, 0);          // String start (error on EOF/newline)
+        initState(104, 26, 0, 10, 0, 13, 0, 39, 87);  // String content
+        initState(TOKEN_STRING, 39, 86);              // String quote (escaped or end)
+        initState(TOKEN_COMMENT, 26, 0, 10, 0, 13, 0); // Comment
+        initAcceptState(TOKEN_COMMENT);                // Comment end
+        initAcceptState(TOKEN_BRACKETOPEN);            // (
+        initAcceptState(TOKEN_BRACKETCLOSE);           // )
+        initAcceptState(TOKEN_COLON);                  // :
+        initAcceptState(TOKEN_EXCLAMATIONPOINT);       // !
+        initAcceptState(TOKEN_COMMA);                  // ,
+        initAcceptState(TOKEN_APOSTROPHE);             // ;
+        initAcceptState(TOKEN_SLASH);                  // /
+        initAcceptState(TOKEN_STAR);                   // *
+    }
+
+    private void initTypeAndSpecialStates() {
+        // States 98-111: I, W, F types, whitespace, register, NAME, END, errors
+        initState(TOKEN_I, 'N', 134);                 // I -> I or INS
+        initAcceptState(TOKEN_W);                      // W
+        initState(TOKEN_F, 'I', 136);                 // F -> F or FIND*
+        initAcceptState(TOKEN_SPACE);                  // Whitespace
+        initAcceptState(TOKEN_NEWLINE);                // Newline
+        initAcceptState(TOKEN_EOF);                    // EOF
+
+        // R + digit states
+        table[pos + '0'] = 105; table[pos + '1'] = 105; table[pos + '2'] = 105;
+        table[pos + '3'] = 105; table[pos + '4'] = 105; table[pos + '5'] = 105;
+        table[pos + tokenTypeColumn] = TOKEN_REGISTER;
+        pos += tableWidth;
+
+        initAcceptState(TOKEN_REGISTER);               // R + 2 digits
+        initState(TOKEN_NAME, ':', 155);              // NAME with label
+        initNameState('D', 108);                       // EN
+        initAcceptState(TOKEN_END);                    // END
+        initAcceptState(TOKEN_EQUALSIGN);              // =
+        initAcceptState(TOKEN_DD);                     // DD
+        initState(101);                                // Error state
+    }
+
+    private void initLogicalAndBitfieldStates() {
+        // States 112-155: OR, XOR, ANDNOT, CLEAR, CMP, HALT, EXT, INS, FIND, JB*, CONV, SBPSW
+        initNameState('R', 113);                       // O -> OR
+        initAcceptState(TOKEN_OR);                     // OR
+        initNameState('O', 115);                       // X -> XOR
+        initNameState('R', 116);                       // XO
+        initAcceptState(TOKEN_XOR);                    // XOR
+        initNameState('D', 118);                       // AN
+        initNameState('N', 119);                       // AND
+        initNameState('O', 120);                       // ANDN
+        initNameState('T', 121);                       // ANDNO
+        initAcceptState(TOKEN_ANDNOT);                 // ANDNOT
+        initNameState('E', 123);                       // CL
+        initNameState('A', 124);                       // CLE
+        initNameState('R', 125);                       // CLEA
+        initAcceptState(TOKEN_CLEAR);                  // CLEAR
+        initNameState('P', 127);                       // CM
+        initAcceptState(TOKEN_CMP);                    // CMP
+        initNameState('L', 129);                       // HA
+        initNameState('T', 130);                       // HAL
+        initAcceptState(TOKEN_HALT);                   // HALT
+
+        // EXT, EXTS states
+        initState(TOKEN_NAME, 'T', 132);              // EX -> EXT
+        initState(TOKEN_EXT, 'S', 133);               // EXT -> EXTS
+        initAcceptState(TOKEN_EXTS);                   // EXTS
+
+        // INS states
+        initState(TOKEN_NAME, 'S', 135);              // IN
+        initAcceptState(TOKEN_INS);                    // INS
+
+        // FIND* states
+        initState(TOKEN_NAME, 'N', 137);              // FI
+        initState(TOKEN_NAME, 'D', 138);              // FIN
+        initState(TOKEN_NAME, 'C', 140, 'S', 139);   // FIND -> FINDC, FINDS
+        initAcceptState(TOKEN_FINDS);                  // FINDS
+        initAcceptState(TOKEN_FINDC);                  // FINDC
+
+        // JB* states
+        initState(TOKEN_NAME, 'C', 145, 'S', 142);   // JB -> JBCCI, JBSSI
+        initState(TOKEN_NAME, 'S', 143);              // JBS
+        initState(TOKEN_NAME, 'I', 144);              // JBSS
+        initAcceptState(TOKEN_JBSSI);                  // JBSSI
+        initState(TOKEN_NAME, 'C', 146);              // JBC
+        initState(TOKEN_NAME, 'I', 147);              // JBCC
+        initAcceptState(TOKEN_JBCCI);                  // JBCCI
+
+        // CONV states
+        initState(TOKEN_NAME, 'N', 149);              // CO
+        initState(TOKEN_NAME, 'V', 150);              // CON
+        initAcceptState(TOKEN_CONV);                   // CONV
+
+        // SBPSW states
+        initState(TOKEN_NAME, 'P', 152);              // SB
+        initState(TOKEN_NAME, 'S', 153);              // SBP
+        initState(TOKEN_NAME, 'W', 154);              // SBPS
+        initAcceptState(TOKEN_SBPSW);                  // SBPSW
+
+        // LABEL state
+        initAcceptState(TOKEN_LABEL);                  // Label (NAME:)
+    }
 
     // Token type constants
 
@@ -141,10 +541,10 @@ public class Scanner {
     public final static int TOKEN_NEWLINE = 91;
     public final static int TOKEN_EOF = 92;
 
-    public final static int TOKEN_FEHLER = 100;
+    public final static int TOKEN_ERROR = 100;
 
     /** Error messages for scanner errors */
-    public static String[] FEHLER = new String[]{
+    public static final String[] SCANNER_ERRORS = new String[]{
             "Scanning error",
             "Error parsing binary number",
             "Error parsing hexadecimal number",
@@ -168,12 +568,12 @@ public class Scanner {
      */
     public void addEqual(Equal equal) {
         String name = equal.getName();
-        for (Equal eq : equals) {
+        for (Equal eq : equDefinitions) {
             if (name.equals(eq.getName())) {
-                equals.remove(eq);
+                equDefinitions.remove(eq);
             }
         }
-        equals.add(equal);
+        equDefinitions.add(equal);
     }
 
     /**
@@ -183,7 +583,7 @@ public class Scanner {
      * @return token iterator, or null if not found
      */
     public Iterator<Token> getEqual(String name) {
-        for (Equal eq : equals) {
+        for (Equal eq : equDefinitions) {
             if (name.equals(eq.getName())) {
                 return eq.getIterator();
             }
@@ -202,23 +602,23 @@ public class Scanner {
             return iter.next();
         }
 
-        Token ret = getNextSymbol_help();
+        Token ret = scanNextToken();
 
         // Skip comments and whitespace unless scanning for highlighting
         if (!highlight) {
             while (ret.getNr() == TOKEN_SPACE || ret.getNr() == TOKEN_COMMENT) {
-                ret = getNextSymbol_help();
+                ret = scanNextToken();
             }
         }
         return ret;
     }
 
     /**
-     * Helper function that returns the next token using the state machine.
+     * Scans and returns the next token using the state machine.
      *
      * @return the next token
      */
-    private Token getNextSymbol_help() {
+    private Token scanNextToken() {
         while (true) {
             ch = b[position];
             if (ch < 0) {
@@ -226,7 +626,7 @@ public class Scanner {
             }
 
             // Get next state from transition table
-            state = table[state * breite + ch];
+            state = table[state * tableWidth + ch];
 
             // No follow state -> token recognized
             if (state == 0) {
@@ -236,12 +636,12 @@ public class Scanner {
                     position = last;
                     if (token < 100) {
                         // System.out.println("Token: " + (token) + " "
-                        // + input.substring(altpos, position));
-                        Token tok = new Token(token, input.substring(altpos,
+                        // + input.substring(tokenStart, position));
+                        Token tok = new Token(token, input.substring(tokenStart,
                                 position),
-                                line, altpos, position);
+                                line, tokenStart, position);
 
-                        altpos = position;
+                        tokenStart = position;
                         token = 0;
                         if (!highlight) {
                             if (tok.getNr() == TOKEN_NAME) {
@@ -255,11 +655,11 @@ public class Scanner {
                         return tok;
                     } else {
 
-                        // System.out.println("Token: " + (FEHLER[token - 100])
-                        // + " " + input.substring(altpos, position));
-                        Token tok = new Token(100, FEHLER[token - 100],
-                                line, altpos, position);
-                        altpos = position;
+                        // System.out.println("Token: " + (SCANNER_ERRORS[token - 100])
+                        // + " " + input.substring(tokenStart, position));
+                        Token tok = new Token(100, SCANNER_ERRORS[token - 100],
+                                line, tokenStart, position);
+                        tokenStart = position;
 
                         token = 0;
                         return tok;
@@ -267,7 +667,7 @@ public class Scanner {
 
                 }
             } else {
-                int h = table[state * breite + zeile];
+                int h = table[state * tableWidth + tokenTypeColumn];
 
                 if (h != 0) {
                     token = h;
@@ -281,7 +681,7 @@ public class Scanner {
                 position++;
             }
         }
-        return new Token(TOKEN_EOF, "Ende", line, altpos, position);
+        return new Token(TOKEN_EOF, "Ende", line, tokenStart, position);
     }
 
     /**
@@ -299,1001 +699,25 @@ public class Scanner {
         sp.add(new Token(TOKEN_REGISTER, "R" + PC_REGISTER, 0, 0, 0));
         addEqual(new Equal("PC", sp));
 
-        // Normalize line endings
+        // Normalize line endings and prepare input
         input = s.replaceAll("\r", "");
-
-        // Add EOF marker
-        // Use ISO-8859-1 encoding to ensure 1:1 mapping between chars and bytes
-        // This prevents StringIndexOutOfBoundsException with multi-byte UTF-8 chars
-        try {
-            b = (input + " ").getBytes("ISO-8859-1");
-        } catch (java.io.UnsupportedEncodingException e) {
-            // ISO-8859-1 is always supported, but fallback just in case
-            b = (input + " ").getBytes();
-        }
-        b[b.length - 1] = 0x1A; // EOF
-
-        // Create state transition table (257 columns x 157 rows)
-        table = new int[(256 + 1) * (157)];
-
-        // Table width
-        breite = 257;
-
-        // Last row stores token type
-        zeile = 256;
-
-        // Default: transition to error state 111
-        for (int j = 0; j <= 255; j++) {
-            table[breite + j] = 111;
-        }
-
-        // Initialize NAME state transitions (state 106)
-        for (int i = 1; i < 71; i++) {
-            for (int j = 'A'; j <= 'Z'; j++) {
-                table[i * breite + j] = 106;
-            }
-            for (int j = 'a'; j <= 'z'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            for (int j = '0'; j <= '9'; j++) {
-                table[i * breite + j] = 106;
-            }
-            table[i * breite + '_'] = 106;
-        }
-
-        for (int i = 98; i < 101; i++) {
-            for (int j = 'A'; j <= 'Z'; j++) {
-                table[i * breite + j] = 106;
-            }
-            for (int j = 'a'; j <= 'z'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            for (int j = '0'; j <= '9'; j++) {
-                table[i * breite + j] = 106;
-            }
-            table[i * breite + '_'] = 106;
-        }
-
-        for (int i = 106; i < 109; i++) {
-            for (int j = 'A'; j <= 'Z'; j++) {
-                table[i * breite + j] = 106;
-            }
-            for (int j = 'a'; j <= 'z'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            for (int j = '0'; j <= '9'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            table[i * breite + '_'] = 106;
-        }
-
-        for (int i = 112; i < 155; i++) {
-            for (int j = 'A'; j <= 'Z'; j++) {
-                table[i * breite + j] = 106;
-            }
-            for (int j = 'a'; j <= 'z'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            for (int j = '0'; j <= '9'; j++) {
-                table[i * breite + j] = 106;
-            }
-
-            table[i * breite + '_'] = 106;
-        }
-
-        for (int j = 'A'; j <= 'Z'; j++) {
-            table[72 * breite + j] = 106;
-            table[76 * breite + j] = 106;
-            table[110 * breite + j] = 106;
-        }
-
-        for (int j = 'a'; j <= 'z'; j++) {
-            table[72 * breite + j] = 106;
-            table[76 * breite + j] = 106;
-            table[110 * breite + j] = 106;
-        }
-
-        table[72 * breite + '_'] = 106;
-        table[76 * breite + '_'] = 106;
-        table[110 * breite + '_'] = 106;
-
-        // Initialize STRING state transitions
-        for (int j = 0; j <= 255; j++) {
-            table[85 * breite + j] = 86;
-            table[86 * breite + j] = 86;
-        }
-
-        // Initialize COMMENT state transitions
-        for (int j = 0; j <= 255; j++) {
-            table[88 * breite + j] = 88;
-        }
-
-        // Initialize HEX number state transitions
-
-        for (int j = 'A'; j <= 'F'; j++) {
-            table[77 * breite + j] = 78;
-            table[78 * breite + j] = 78;
-        }
-
-        for (int j = '0'; j <= '9'; j++) {
-            table[77 * breite + j] = 78;
-            table[78 * breite + j] = 78;
-        }
-
-        // Initialize NUMBER state transitions
-        for (int j = '0'; j <= '9'; j++) {
-            table[1 * breite + j] = 71;
-            table[69 * breite + j] = 71;
-            table[70 * breite + j] = 71;
-            table[71 * breite + j] = 71;
-        }
-
-        // Initialize FLOAT state transitions
-
-        for (int j = '0'; j <= '9'; j++) {
-            table[80 * breite + j] = 81;
-            table[81 * breite + j] = 81;
-            table[83 * breite + j] = 84;
-            table[84 * breite + j] = 84;
-        }
-
-        // Zeile 1
-        pos = breite;
-        table[pos + 0] = 101; // #0
-        table[pos + 9] = 101; // TAB
-        table[pos + 26] = 103; // EOF
-        table[pos + 10] = 102; // LF
-        table[pos + 13] = 102; // CR
-        table[pos + 32] = 101; // CR
-        table[pos + '-'] = 70;
-        table[pos + '_'] = 106;
-        table[pos + '+'] = 69;
-        table[pos + '!'] = 93;
-        table[pos + '/'] = 96;
-        table[pos + ','] = 94;
-        table[pos + ':'] = 92;
-        table[pos + ';'] = 95;
-        table[pos + '='] = 109;
-        table[pos + 39] = 85;
-        table[pos + '('] = 90;
-        table[pos + ')'] = 91;
-        table[pos + '*'] = 97;
-
-        table[pos + 'A'] = 17;
-        table[pos + 'B'] = 72;
-        table[pos + 'C'] = 53;
-        table[pos + 'D'] = 26;
-        table[pos + 'E'] = 5;
-        table[pos + 'F'] = 100;
-        table[pos + 'H'] = 76;
-        table[pos + 'I'] = 98;
-        table[pos + 'J'] = 35;
-        table[pos + 'M'] = 22;
-        table[pos + 'O'] = 112;
-        table[pos + 'P'] = 58;
-        table[pos + 'R'] = 10;
-        table[pos + 'S'] = 2;
-        table[pos + 'W'] = 99;
-        table[pos + 'X'] = 114;
-        table[pos + zeile] = 0; // kein Endzustand
-        pos += breite;
-
-        // Zeile 2
-        table[pos + 'B'] = 151;
-        table[pos + 'E'] = 3;
-        table[pos + 'H'] = 66;
-        table[pos + 'U'] = 20;
-        table[pos + ':'] = 131;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 3
-        table[pos + 'G'] = 4;
-        table[pos + ':'] = 131;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 4
-        table[pos + zeile] = TOKEN_SEG; // SEG
-        pos += breite;
-
-        // Zeile 5
-        table[pos + 'N'] = 107;
-        table[pos + 'Q'] = 6;
-        table[pos + 'X'] = 131;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 6
-        table[pos + 'U'] = 7;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 7
-        table[pos + 'A'] = 8;
-        table[pos + zeile] = TOKEN_EQU; // EQU
-        pos += breite;
-
-        // Zeile 8
-        table[pos + 'L'] = 9;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 9
-        table[pos + zeile] = TOKEN_EQU; // EQUAL
-        pos += breite;
-
-        // Zeile 10
-        table[pos + '0'] = 105;
-        table[pos + '1'] = 105;
-        table[pos + '2'] = 105;
-        table[pos + '3'] = 105;
-        table[pos + '4'] = 105;
-        table[pos + '5'] = 105;
-        table[pos + '6'] = 105;
-        table[pos + '7'] = 105;
-        table[pos + '8'] = 105;
-        table[pos + '9'] = 105;
-        table[pos + '1'] = 104;
-        table[pos + 'E'] = 11;
-        table[pos + 'O'] = 67;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 11
-        table[pos + 'S'] = 12;
-        table[pos + 'T'] = 57;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 12
-        table[pos + 'E'] = 13;
-        table[pos + zeile] = TOKEN_RES; // RES
-        pos += breite;
-
-        // Zeile 13
-        table[pos + 'R'] = 14;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 14
-        table[pos + 'V'] = 15;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 15
-        table[pos + 'E'] = 16;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 16
-        table[pos + zeile] = TOKEN_RES; // RESERVE
-        pos += breite;
-
-        // Zeile 17
-        table[pos + 'D'] = 18;
-        table[pos + 'N'] = 117;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 18
-        table[pos + 'D'] = 19;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 19
-        table[pos + zeile] = TOKEN_ADD; // ADD
-        pos += breite;
-
-        // Zeile 20
-        table[pos + 'B'] = 21;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 21
-        table[pos + zeile] = TOKEN_SUB; // SUB
-        pos += breite;
-
-        // Zeile 22
-        table[pos + 'O'] = 29;
-        table[pos + 'U'] = 23;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 23
-        table[pos + 'L'] = 24;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 24
-        table[pos + 'T'] = 25;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 25
-        table[pos + zeile] = TOKEN_MULT; // MULT
-        pos += breite;
-
-        // Zeile 26
-        table[pos + 'D'] = 110;
-        table[pos + 'I'] = 27;
-        table[pos + zeile] = TOKEN_D; // D
-        pos += breite;
-
-        // Zeile 27
-        table[pos + 'V'] = 28;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 28
-        table[pos + zeile] = TOKEN_DIV; // DIV
-        pos += breite;
-
-        // Zeile 29
-        table[pos + 'V'] = 30;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 30
-        table[pos + 'E'] = 31;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 31
-        table[pos + 'A'] = 32;
-        table[pos + 'C'] = 33;
-        table[pos + 'N'] = 34;
-        table[pos + zeile] = TOKEN_MOVE; // MOVE
-        pos += breite;
-
-        // Zeile 32
-        table[pos + zeile] = TOKEN_MOVEA; // MOVEA
-        pos += breite;
-
-        // Zeile 33
-        table[pos + zeile] = TOKEN_MOVEC; // MOVEC
-        pos += breite;
-
-        // Zeile 34
-        table[pos + zeile] = TOKEN_MOVEN; // MOVEN
-        pos += breite;
-
-        // Zeile 35
-        table[pos + 'B'] = 141;
-        table[pos + 'C'] = 46;
-        table[pos + 'E'] = 36;
-        table[pos + 'G'] = 40;
-        table[pos + 'L'] = 43;
-        table[pos + 'N'] = 38;
-        table[pos + 'U'] = 48;
-        table[pos + 'V'] = 51;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 36
-        table[pos + 'Q'] = 37;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 37
-        table[pos + zeile] = TOKEN_JEQ; // JEQ
-        pos += breite;
-
-        // Zeile 38
-        table[pos + 'C'] = 47;
-        table[pos + 'E'] = 39;
-        table[pos + 'V'] = 52;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 39
-        table[pos + zeile] = TOKEN_JNE; // JNE
-        pos += breite;
-
-        // Zeile 40
-        table[pos + 'E'] = 42;
-        table[pos + 'T'] = 41;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 41
-
-        table[pos + zeile] = TOKEN_JGT; // JGT
-        pos += breite;
-
-        // Zeile 42
-        table[pos + zeile] = TOKEN_JGE; // JGE
-        pos += breite;
-
-        // Zeile 43
-        table[pos + 'E'] = 45;
-        table[pos + 'T'] = 44;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 44
-        table[pos + zeile] = TOKEN_JLT; // JLT
-        pos += breite;
-
-        // Zeile 45
-        table[pos + zeile] = TOKEN_JLE; // JLE
-        pos += breite;
-
-        // Zeile 46
-        table[pos + zeile] = TOKEN_JC; // JC
-        pos += breite;
-
-        // Zeile 47
-        table[pos + zeile] = TOKEN_JNC; // JNC
-        pos += breite;
-
-        // Zeile 48
-        table[pos + 'M'] = 49;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 49
-        table[pos + 'P'] = 50;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 50
-        table[pos + zeile] = TOKEN_JUMP; // JUMP
-        pos += breite;
-
-        // Zeile 51
-        table[pos + zeile] = TOKEN_JV; // JV
-        pos += breite;
-
-        // Zeile 52
-        table[pos + zeile] = TOKEN_JNV; // JNV
-        pos += breite;
-
-        // Zeile 53
-        table[pos + 'A'] = 54;
-        table[pos + 'L'] = 122;
-        table[pos + 'M'] = 126;
-        table[pos + 'O'] = 148;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 54
-        table[pos + 'L'] = 55;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 55
-        table[pos + 'L'] = 56;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 56
-        table[pos + zeile] = TOKEN_CALL; // CALL
-        pos += breite;
-
-        // Zeile 57
-        table[pos + zeile] = TOKEN_RET; // RET
-        pos += breite;
-
-        // Zeile 58
-        table[pos + 'O'] = 59;
-        table[pos + 'U'] = 62;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 59
-        table[pos + 'P'] = 60;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 60
-        table[pos + 'R'] = 61;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 61
-        table[pos + zeile] = TOKEN_POPR; // POPR
-        pos += breite;
-
-        // Zeile 62
-        table[pos + 'S'] = 63;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 63
-        table[pos + 'H'] = 64;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 64
-        table[pos + 'R'] = 65;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 65
-        table[pos + zeile] = TOKEN_PUSHR; // PUSHR
-        pos += breite;
-
-        // Zeile 66
-        table[pos + zeile] = TOKEN_SH; // SH
-        pos += breite;
-
-        // Zeile 67
-        table[pos + 'T'] = 68;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 68
-        table[pos + zeile] = TOKEN_ROT; // ROT
-        pos += breite;
-
-        // Zeile 69
-        table[pos + zeile] = TOKEN_PLUS; // PLUS
-        pos += breite;
-
-        // Zeile 70
-        table[pos + '-'] = 88;
-        table[pos + zeile] = TOKEN_MINUS; // PLUS
-        pos += breite;
-
-        // Zeile 71
-        table[pos + '.'] = 80;
-        table[pos + 'E'] = 83;
-        table[pos + zeile] = TOKEN_NUMBER; // NUMBER
-        pos += breite;
-
-        // Zeile 72
-        table[pos + 39] = 73;
-        table[pos + zeile] = TOKEN_B; // B
-        pos += breite;
-
-        // Zeile 73
-        table[pos + '0'] = 74;
-        table[pos + '1'] = 74;
-        table[pos + zeile] = 101; // Error parsing binary number
-        pos += breite;
-
-        // Row 74
-        table[pos + 39] = 75;
-        table[pos + '0'] = 74;
-        table[pos + '1'] = 74;
-        table[pos + zeile] = 101; // Error parsing binary number
-        pos += breite;
-
-        // Row 75
-        table[pos + zeile] = TOKEN_BIN; // Binary number
-        pos += breite;
-
-        // Zeile 76
-        table[pos + 39] = 77;
-        table[pos + 'A'] = 128;
-        table[pos + zeile] = TOKEN_H; // H
-        pos += breite;
-
-        // Zeile 77
-        table[pos + zeile] = 102; // Error parsing hex number
-        pos += breite;
-
-        // Zeile 78
-        table[pos + 39] = 79;
-        table[pos + zeile] = 102; // Error parsing hex number
-        pos += breite;
-
-        // Zeile 79
-        table[pos + zeile] = TOKEN_HEX; // HEX
-        pos += breite;
-
-        // Zeile 80
-        table[pos + zeile] = 103; // Error parsing float number
-        pos += breite;
-
-        // Zeile 81
-        table[pos + 'E'] = 83;
-        table[pos + zeile] = TOKEN_FLOAT; // Float
-        pos += breite;
-
-        // Zeile 82
-        table[pos + zeile] = TOKEN_FLOAT; // Float
-        pos += breite;
-
-        // Zeile 83
-        table[pos + '-'] = 84;
-        table[pos + '+'] = 84;
-        table[pos + zeile] = 103; // Error parsing float number
-        pos += breite;
-
-        // Zeile 84
-        table[pos + zeile] = TOKEN_FLOAT; // Float
-        pos += breite;
-
-        // Zeile 85
-        table[pos + 26] = 0; // EOF
-        table[pos + 10] = 0; // LF
-        table[pos + 13] = 0; // CR
-        table[pos + zeile] = 104; // Error parsing string
-        pos += breite;
-
-        // Zeile 86
-        table[pos + 26] = 0; // EOF
-        table[pos + 10] = 0; // LF
-        table[pos + 13] = 0; // CR
-        table[pos + 39] = 87;
-        table[pos + zeile] = 104; // Error parsing string
-        pos += breite;
-
-        // Zeile 87
-        table[pos + 39] = 86;
-        table[pos + zeile] = TOKEN_STRING; // String
-        pos += breite;
-
-        // Zeile 88
-        table[pos + 26] = 0; // EOF
-        table[pos + 10] = 0; // LF
-        table[pos + 13] = 0; // CR
-        table[pos + zeile] = TOKEN_COMMENT; // Comment
-        pos += breite;
-
-        // Zeile 89
-        table[pos + zeile] = TOKEN_COMMENT; // Comment
-        pos += breite;
-
-        // Zeile 90
-        table[pos + zeile] = TOKEN_BRACKETOPEN; // (
-        pos += breite;
-
-        // Zeile 91
-        table[pos + zeile] = TOKEN_BRACKETCLOSE; // )
-        pos += breite;
-
-        // Zeile 92
-        table[pos + zeile] = TOKEN_COLON; // :
-        pos += breite;
-
-        // Zeile 93
-        table[pos + zeile] = TOKEN_EXCLAMATIONPOINT; // !
-        pos += breite;
-
-        // Zeile 94
-        table[pos + zeile] = TOKEN_COMMA; // ,
-        pos += breite;
-
-        // Zeile 95
-        table[pos + zeile] = TOKEN_APOSTROPHE; // ;
-        pos += breite;
-
-        // Zeile 96
-        table[pos + zeile] = TOKEN_SLASH; // SLASH
-        pos += breite;
-
-        // Zeile 97
-        table[pos + zeile] = TOKEN_STAR; // *
-        pos += breite;
-
-        // Zeile 98
-        table[pos + 'N'] = 134;
-        table[pos + zeile] = TOKEN_I; // I
-        pos += breite;
-
-        // Zeile 99
-        table[pos + zeile] = TOKEN_W; // W
-        pos += breite;
-
-        // Zeile 100
-        table[pos + 'I'] = 136;
-        table[pos + zeile] = TOKEN_F; // F
-        pos += breite;
-
-        // Zeile 101
-        table[pos + zeile] = TOKEN_SPACE; // Whitespace
-        pos += breite;
-
-        // Zeile 102
-        table[pos + zeile] = TOKEN_NEWLINE; // NEWLINE
-        pos += breite;
-
-        // Zeile 103
-        table[pos + zeile] = TOKEN_EOF; // EOF
-        pos += breite;
-
-        // Zeile 104
-        table[pos + '0'] = 105;
-        table[pos + '1'] = 105;
-        table[pos + '2'] = 105;
-        table[pos + '3'] = 105;
-        table[pos + '4'] = 105;
-        table[pos + '5'] = 105;
-        table[pos + zeile] = TOKEN_REGISTER; // REGISTER
-        pos += breite;
-
-        // Zeile 105
-        table[pos + zeile] = TOKEN_REGISTER; // REGISTER
-        pos += breite;
-
-        // Zeile 106
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 107
-        table[pos + 'D'] = 108;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 108
-        table[pos + zeile] = TOKEN_END; // END
-        pos += breite;
-
-        // Zeile 109
-        table[pos + zeile] = TOKEN_EQUALSIGN; // ==
-        pos += breite;
-
-        // Zeile 110
-        table[pos + zeile] = TOKEN_DD; // DD
-        pos += breite;
-
-        // Zeile 111
-        table[pos + zeile] = 101; // Error - invalid character
-        pos += breite;
-
-        // Zeile 112
-        table[pos + 'R'] = 113;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 113
-        table[pos + zeile] = TOKEN_OR; // OR
-        pos += breite;
-
-        // Zeile 114
-        table[pos + 'O'] = 115;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 115
-        table[pos + 'R'] = 116;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 116
-        table[pos + zeile] = TOKEN_XOR; // XOR
-        pos += breite;
-
-        // Zeile 117
-        table[pos + 'D'] = 118;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 118
-        table[pos + 'N'] = 119;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 119
-        table[pos + 'O'] = 120;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 120
-        table[pos + 'T'] = 121;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 121
-        table[pos + zeile] = TOKEN_ANDNOT; // ANDNOT
-        pos += breite;
-
-        // Zeile 122
-        table[pos + 'E'] = 123;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 123
-        table[pos + 'A'] = 124;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 124
-        table[pos + 'R'] = 125;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 125
-        table[pos + zeile] = TOKEN_CLEAR; // CLEAR
-        pos += breite;
-
-        // Zeile 126
-        table[pos + 'P'] = 127;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 127
-        table[pos + zeile] = TOKEN_CMP; // CMP
-        pos += breite;
-
-        // Zeile 128
-        table[pos + 'L'] = 129;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 129
-        table[pos + 'T'] = 130;
-        table[pos + ':'] = 155;
-        table[pos + zeile] = TOKEN_NAME; // Name
-        pos += breite;
-
-        // Zeile 130
-        table[pos + zeile] = TOKEN_HALT; // HALT
-        pos += breite;
-
-        // Zeile 131
-        table[pos + 'T'] = 132;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 132
-        table[pos + 'S'] = 133;
-        table[pos + zeile] = TOKEN_EXT; // EXT
-        pos += breite;
-
-        // Zeile 133
-        table[pos + zeile] = TOKEN_EXTS; // EXTS
-        pos += breite;
-
-        // Zeile 134
-        table[pos + 'S'] = 135;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 135
-        table[pos + zeile] = TOKEN_INS; // INS
-        pos += breite;
-
-        // Zeile 136
-        table[pos + 'N'] = 137;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 137
-        table[pos + 'D'] = 138;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 138
-        table[pos + 'C'] = 140;
-        table[pos + 'S'] = 139;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 139
-        table[pos + zeile] = TOKEN_FINDS; // FINDS
-        pos += breite;
-
-        // Zeile 140
-        table[pos + zeile] = TOKEN_FINDC; // FINDC
-        pos += breite;
-
-        // Zeile 141
-        table[pos + 'C'] = 145;
-        table[pos + 'S'] = 142;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 142
-        table[pos + 'S'] = 143;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 143
-        table[pos + 'I'] = 144;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 144
-        table[pos + zeile] = TOKEN_JBSSI; // JBSSI
-        pos += breite;
-
-        // Zeile 145
-        table[pos + 'C'] = 146;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 146
-        table[pos + 'I'] = 147;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 147
-        table[pos + zeile] = TOKEN_JBCCI; // JBCCI
-        pos += breite;
-
-        // Zeile 148
-        table[pos + 'N'] = 149;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 149
-        table[pos + 'V'] = 150;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 150
-        table[pos + zeile] = TOKEN_CONV; // CONV
-        pos += breite;
-
-        // Zeile 151
-        table[pos + 'P'] = 152;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 152
-        table[pos + 'S'] = 153;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 153
-        table[pos + 'W'] = 154;
-        table[pos + zeile] = TOKEN_NAME; // NAME
-        pos += breite;
-
-        // Zeile 154
-        table[pos + zeile] = TOKEN_SBPSW; // SBPSW
-        pos += breite;
-
-        // Zeile 155
-        table[pos + zeile] = TOKEN_LABEL; // LABEL
-
+        b = (input + " ").getBytes(java.nio.charset.StandardCharsets.ISO_8859_1);
+        b[b.length - 1] = 0x1A; // EOF marker
+
+        // Initialize state transition table
+        initStateTableStructure();
+        initBaseTransitions();
+
+        // Initialize state rows
+        initStartState();
+        initSegEquResStates();
+        initArithmeticMoveStates();
+        initJumpStates();
+        initCallRetPushPopStates();
+        initNumberStates();
+        initStringCommentPunctuationStates();
+        initTypeAndSpecialStates();
+        initLogicalAndBitfieldStates();
     }
 
 }

@@ -32,6 +32,42 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MachineEventBus {
 
+    /**
+     * A no-op event bus that ignores all operations.
+     * Use this as a default instead of null to avoid null checks.
+     */
+    public static final MachineEventBus NO_OP = new MachineEventBus() {
+        @Override
+        public <T extends MachineEvent> void subscribe(Class<T> eventType, MachineEventListener listener) {
+            // No-op
+        }
+
+        @Override
+        public void subscribeAll(MachineEventListener listener) {
+            // No-op
+        }
+
+        @Override
+        public <T extends MachineEvent> void unsubscribe(Class<T> eventType, MachineEventListener listener) {
+            // No-op
+        }
+
+        @Override
+        public void unsubscribeAll(MachineEventListener listener) {
+            // No-op
+        }
+
+        @Override
+        public void publish(MachineEvent event) {
+            // No-op
+        }
+
+        @Override
+        public void clear() {
+            // No-op
+        }
+    };
+
     private final Map<Class<? extends MachineEvent>, List<MachineEventListener>> listeners;
     private final List<MachineEventListener> globalListeners;
 

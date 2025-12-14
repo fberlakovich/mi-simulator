@@ -1,5 +1,6 @@
 package cli;
 
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.commands.Command;
 
@@ -17,8 +18,8 @@ class ValidatingMachine {
     private String[] referenceLines;
     private int referenceIndex = 0;
 
-    ValidatingMachine(ProgramRunner runner, String referenceLines) {
-        this.inner = new PrintingMachine(runner, new PrintStream(result), false);
+    ValidatingMachine(MachineContext machine, ProgramRunner runner, String referenceLines) {
+        this.inner = new PrintingMachine(machine, runner, new PrintStream(result), false);
         this.referenceLines = referenceLines.split(System.lineSeparator(), -1);
     }
 

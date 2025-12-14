@@ -141,6 +141,8 @@ public class Register {
                     Machine.getInstance().getRegisters().getRegister((nr + 1) % REGISTER_COUNT);
                 wrap.setContent(new MyByte[]{data[4], data[5], data[6], data[7]});
                 break;
+            default:
+                throw new engine.InternalError("Invalid register write length: " + data.length);
         }
 
         if (isStack && Machine.getInstance().getStackBegin() == 0) {

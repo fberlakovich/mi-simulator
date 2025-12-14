@@ -1,6 +1,6 @@
 package cli;
 
-import engine.Machine;
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.state.Register;
 import static engine.MachineConstants.REGISTER_COUNT;
@@ -14,12 +14,14 @@ import java.io.PrintStream;
  * Works directly with ProgramRunner.
  */
 class QuietMachine {
+    private final MachineContext machine;
     private final ProgramRunner runner;
     private final PrintStream out;
     private final boolean printHex;
     private boolean halted;
 
-    QuietMachine(ProgramRunner runner, PrintStream out, boolean printHex) {
+    QuietMachine(MachineContext machine, ProgramRunner runner, PrintStream out, boolean printHex) {
+        this.machine = machine;
         this.runner = runner;
         this.out = out;
         this.printHex = printHex;
@@ -44,7 +46,7 @@ class QuietMachine {
     public void printRegisterState() {
         String format = printHex ? "R%s: 0x%X" : "R%s: %d";
         for (int i = 0; i < REGISTER_COUNT; i++) {
-            Register register = Machine.getInstance().getRegisters().getRegister(i);
+            Register register = machine.getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             out.println(String.format(format, i, regValue));
         }

@@ -169,7 +169,8 @@ public class Cmp extends Command {
                     machine.getFlags().setZero(zahl11.compareTo(zahl22) == 0);
                     machine.getFlags().setNegative(zahl11.compareTo(zahl22) < 0);
                     break;
-
+                default:
+                    throw new IllegalStateException("Unsupported floating point length: " + length);
             }
 
         } else {
@@ -219,6 +220,9 @@ public class Cmp extends Command {
                 break;
             case 8:
                 bhwfd = "D";
+                break;
+            default:
+                bhwfd = "?";
                 break;
         }
         return "CMP " + bhwfd + " " + op1.toString() + ", " + op2.toString();

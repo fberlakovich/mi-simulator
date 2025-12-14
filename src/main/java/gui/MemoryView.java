@@ -3,7 +3,7 @@ package gui;
 import engine.events.MachineEvent;
 import engine.events.MachineEventListener;
 import engine.events.MemoryUpdateEvent;
-import engine.Machine;
+import engine.MachineContext;
 import engine.util.MemoryChangeTracker;
 import engine.state.MyByte;
 import engine.util.NumberConversion;
@@ -24,17 +24,21 @@ public class MemoryView implements MachineEventListener {
 
     private JList<MemoryTableEntry> memoryJList;
     private ArrayList<MemoryTableEntry> data;
+    private final MachineContext machine;
+    private final MemoryChangeTracker tracker;
 
-    public MemoryView() {
+    public MemoryView(MachineContext machine, MemoryChangeTracker tracker) {
+        this.machine = machine;
+        this.tracker = tracker;
         createMemory();
-        Machine.getInstance().getEventBus().subscribe(MemoryUpdateEvent.class, this);
+        machine.getEventBus().subscribe(MemoryUpdateEvent.class, this);
     }
 
     /**
      * Cleans up resources (unsubscribes from event bus).
      */
     public void cleanup() {
-        Machine.getInstance().getEventBus().unsubscribe(MemoryUpdateEvent.class, this);
+        machine.getEventBus().unsubscribe(MemoryUpdateEvent.class, this);
     }
 
     @Override
@@ -52,7 +56,7 @@ public class MemoryView implements MachineEventListener {
                 // But wait, we should check if we can access it.
                 // Assuming package-private access works as they are in the same package.
                 if (entry.data != null && col < entry.data.size()) {
-                    entry.data.set(col, Machine.getInstance().getMemory().getRawByte(address));
+                    entry.data.set(col, machine.getMemory().getRawByte(address));
                 }
 
                 // Notify model
@@ -76,10 +80,10 @@ public class MemoryView implements MachineEventListener {
 
         ArrayList<MyByte> list = new ArrayList<>();
         for (int i = 0; i < MEMORY_SIZE; i++) {
-            list.add(Machine.getInstance().getMemory().getRawByte(i));
+            list.add(machine.getMemory().getRawByte(i));
             count++;
             if (count == 8) {
-                data.add(new MemoryTableEntry(list, line));
+                data.add(new MemoryTableEntry(list, line, tracker));
 
                 line = "00000".substring(0, 6 - Integer.toHexString(i + 1).length())
                         + Integer.toHexString(i + 1);
@@ -110,26 +114,20 @@ public class MemoryView implements MachineEventListener {
     public JScrollPane getStackTable() {
         int count = 0;
         int merke = 0;
-        int ende = Machine.getInstance().getStackBegin();
+        int ende = machine.getStackBegin();
         String[] liste = null;
 
         int beg = NumberConversion.myBytetoIntWithSign(
-                Machine.getInstance().getRegisters().getRegister(SP_REGISTER).getContent(4));
+                machine.getRegisters().getRegister(SP_REGISTER).getContent(4));
         beg = beg / 8 * 8;
         if (beg <= ende && ende != 0) {
             String line = "00000".substring(0, 6 - Integer.toHexString(beg).length())
                     + Integer.toHexString(beg);
             line = line.toUpperCase();
-            liste = new String[(Machine.getInstance().getStackBegin() - beg) / 4 + 1];
+            liste = new String[(machine.getStackBegin() - beg) / 4 + 1];
 
-            // Get memory tracker from Window if available
-            MemoryChangeTracker tracker = null;
-            if (GuiState.getFrame() != null) {
-                tracker = GuiState.getFrame().getMemoryTracker();
-            }
-
-            for (int i = beg; i <= Machine.getInstance().getStackBegin() + 8; i++) {
-                MyByte memByte = Machine.getInstance().getMemory().getRawByte(i);
+            for (int i = beg; i <= machine.getStackBegin() + 8; i++) {
+                MyByte memByte = machine.getMemory().getRawByte(i);
                 boolean changed = tracker != null && tracker.isChanged(i);
 
                 if (changed) {

@@ -186,6 +186,8 @@ public class MoveN extends Command {
                     zero = (resD == 0);
                     negative = (resD < 0);
                     break;
+                default:
+                    throw new IllegalStateException("Unsupported floating point length: " + length);
             }
         } else {
             long val = NumberConversion.myBytetoLongWithSign(op1.getContent());
@@ -246,6 +248,9 @@ public class MoveN extends Command {
                 break;
             case 8:
                 bhwfd = "D";
+                break;
+            default:
+                bhwfd = "?";
                 break;
         }
         return "MOVEN " + bhwfd + " " + op1.toString() + ", " + op2.toString();

@@ -245,7 +245,7 @@ public class FileManager {
      */
     private void writeFile(File file, String content) throws IOException {
         try (FileOutputStream out = new FileOutputStream(file)) {
-            out.write(content.getBytes());
+            out.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
     }
 }

@@ -2,6 +2,7 @@ package engine.commands;
 
 import cli.MachineUtils;
 import engine.Machine;
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.util.NumberConversion;
 import org.junit.Before;
@@ -17,17 +18,20 @@ public abstract class InstructionTestBase {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(120);
 
+    protected MachineContext machine;
+
     @Before
     public void setUp() {
         Machine.resetInstance();
+        machine = Machine.getInstance();
     }
 
     /**
      * Assembles and loads a program, executes until HALT.
      */
     protected void assembleAndRun(String program) {
-        MachineUtils.assembleAndLoad(program);
-        ProgramRunner runner = Machine.getInstance().createRunner();
+        MachineUtils.assembleAndLoad(machine, program);
+        ProgramRunner runner = machine.createRunner();
         while (runner.step()) {
             // step() returns false when program ends (HALT or no more commands)
         }
@@ -37,7 +41,7 @@ public abstract class InstructionTestBase {
      * Gets the value of a register as a signed 32-bit integer.
      */
     protected int getRegister(int regNum) {
-        return Machine.getInstance().getRegisters().getRegister(regNum).getContentAsNumber(4);
+        return machine.getRegisters().getRegister(regNum).getContentAsNumber(4);
     }
 
     /**
@@ -45,7 +49,7 @@ public abstract class InstructionTestBase {
      */
     protected float getRegisterAsFloat(int regNum) {
         int bits = NumberConversion.myBytetoIntWithoutSign(
-                Machine.getInstance().getRegisters().getRegister(regNum).getContent(4));
+                machine.getRegisters().getRegister(regNum).getContent(4));
         return Float.intBitsToFloat(bits);
     }
 
@@ -54,7 +58,7 @@ public abstract class InstructionTestBase {
      */
     protected double getRegisterAsDouble(int regNum) {
         long bits = NumberConversion.myBytetoLongWithoutSign(
-                Machine.getInstance().getRegisters().getRegister(regNum).getContent(8));
+                machine.getRegisters().getRegister(regNum).getContent(8));
         return Double.longBitsToDouble(bits);
     }
 
@@ -62,28 +66,28 @@ public abstract class InstructionTestBase {
      * Gets the Zero flag.
      */
     protected boolean isZeroFlag() {
-        return Machine.getInstance().getFlags().isZero();
+        return machine.getFlags().isZero();
     }
 
     /**
      * Gets the Negative flag.
      */
     protected boolean isNegativeFlag() {
-        return Machine.getInstance().getFlags().isNegative();
+        return machine.getFlags().isNegative();
     }
 
     /**
      * Gets the Overflow flag.
      */
     protected boolean isOverflowFlag() {
-        return Machine.getInstance().getFlags().isOverflow();
+        return machine.getFlags().isOverflow();
     }
 
     /**
      * Gets the Carry flag.
      */
     protected boolean isCarryFlag() {
-        return Machine.getInstance().getFlags().isCarry();
+        return machine.getFlags().isCarry();
     }
 
     /**

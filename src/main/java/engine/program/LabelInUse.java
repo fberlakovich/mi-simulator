@@ -100,6 +100,11 @@ public class LabelInUse {
         return super.equals(label);
     }
 
+    @Override
+    public int hashCode() {
+        return name != null ? name.hashCode() : 0;
+    }
+
     public void setLabel(Label label) {
         this.label = label;
     }

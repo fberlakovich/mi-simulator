@@ -150,7 +150,8 @@ public class Jump extends Command {
             case 10: // JNV
                 jump = !machine.getFlags().isOverflow();
                 break;
-
+            default:
+                throw new IllegalStateException("Unknown jump type: " + typ);
         }
 
         int target = 0;

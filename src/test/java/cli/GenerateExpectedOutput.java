@@ -1,6 +1,7 @@
 package cli;
 
 import engine.Machine;
+import engine.MachineContext;
 import engine.ProgramRunner;
 
 import java.io.ByteArrayOutputStream;
@@ -37,11 +38,13 @@ public class GenerateExpectedOutput {
 
         String programText = Files.readString(programFile);
 
-        MachineUtils.assembleAndLoad(programText);
+        Machine.resetInstance();
+        MachineContext context = Machine.getInstance();
+        MachineUtils.assembleAndLoad(context, programText);
 
         ByteArrayOutputStream result = new ByteArrayOutputStream();
-        ProgramRunner runner = Machine.getInstance().createRunner();
-        PrintingMachine machine = new PrintingMachine(runner, new PrintStream(result), false);
+        ProgramRunner runner = context.createRunner();
+        PrintingMachine machine = new PrintingMachine(context, runner, new PrintStream(result), false);
 
         while (!machine.hasHalted()) {
             machine.executeNext();

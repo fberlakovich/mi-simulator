@@ -261,6 +261,9 @@ public class AndNot extends Command {
             case 4:
                 bhwfd = "W";
                 break;
+            default:
+                bhwfd = "?";
+                break;
         }
         return "ANDNOT " + bhwfd + " " + op1.toString() + ", " + op2.toString() + (three ?
                 ", " + op3.toString() :

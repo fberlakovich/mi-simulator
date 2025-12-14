@@ -4,6 +4,9 @@ plugins {
     id 'jacoco'
     id 'org.openrewrite.rewrite' version '6.17.0'
     id 'info.solidsoft.pitest' version '1.15.0'
+    id 'pmd'
+    id 'com.github.spotbugs' version '6.0.26'
+    id 'checkstyle'
 }
 
 group 'de.unibw.mnp'
@@ -131,4 +134,124 @@ pitest {
     timeoutConstInMillis = 10000
     // Verbose output
     verbose = true
+}
+
+// =============================================================================
+// Static Analysis Configuration
+// =============================================================================
+
+// PMD - Code quality and complexity analysis
+pmd {
+    toolVersion = '7.8.0'
+    consoleOutput = true
+    ignoreFailures = true  // Don't fail build, just report
+
+    ruleSets = []  // Clear default rulesets, use custom rules
+    ruleSetFiles = files("config/pmd/ruleset.xml")
+}
+
+pmdMain {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+pmdTest {
+    enabled = false  // Skip test code analysis
+}
+
+// SpotBugs - Bug detection
+spotbugs {
+    ignoreFailures = true
+    showProgress = true
+    excludeFilter = file('config/spotbugs/exclude.xml')
+}
+
+spotbugsMain {
+    reports {
+        html.required = true
+        xml.required = true
+    }
+}
+
+spotbugsTest {
+    enabled = false
+}
+
+// Checkstyle - Code style
+checkstyle {
+    toolVersion = '10.20.1'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    ignoreFailures = true
+    showViolations = true
+    maxWarnings = 0
+    maxErrors = 0
+}
+
+checkstyleMain {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+checkstyleTest {
+    enabled = false
+}
+
+// Combined analysis task
+tasks.register('analyze') {
+    group = 'verification'
+    description = 'Run all static analysis tools (PMD, SpotBugs, Checkstyle)'
+    dependsOn 'pmdMain', 'spotbugsMain', 'checkstyleMain'
+
+    doLast {
+        println "\n" + "="*70
+        println "STATIC ANALYSIS COMPLETE"
+        println "="*70
+        println "Reports generated in:"
+        println "  - PMD:       build/reports/pmd/main.html"
+        println "  - SpotBugs:  build/reports/spotbugs/main.html"
+        println "  - Checkstyle: build/reports/checkstyle/main.html"
+        println "="*70
+    }
+}
+
+// Quality report summary task
+tasks.register('qualityReport') {
+    group = 'verification'
+    description = 'Generate quality metrics summary'
+    dependsOn 'analyze', 'jacocoTestReport'
+
+    doLast {
+        println "\n" + "="*70
+        println "CODE QUALITY REPORT"
+        println "="*70
+
+        // Count issues from XML reports
+        def pmdFile = file("build/reports/pmd/main.xml")
+        def spotbugsFile = file("build/reports/spotbugs/main.xml")
+        def checkstyleFile = file("build/reports/checkstyle/main.xml")
+
+        if (pmdFile.exists()) {
+            def pmdXml = new groovy.xml.XmlSlurper().parse(pmdFile)
+            def pmdViolations = pmdXml.'**'.findAll { it.name() == 'violation' }.size()
+            println "PMD Violations: ${pmdViolations}"
+        }
+
+        if (spotbugsFile.exists()) {
+            def spotbugsXml = new groovy.xml.XmlSlurper().parse(spotbugsFile)
+            def bugs = spotbugsXml.'**'.findAll { it.name() == 'BugInstance' }.size()
+            println "SpotBugs Issues: ${bugs}"
+        }
+
+        if (checkstyleFile.exists()) {
+            def checkstyleXml = new groovy.xml.XmlSlurper().parse(checkstyleFile)
+            def errors = checkstyleXml.'**'.findAll { it.name() == 'error' }.size()
+            println "Checkstyle Issues: ${errors}"
+        }
+
+        println "="*70
+    }
 }

@@ -1,6 +1,7 @@
 package engine.state;
 
 import engine.Machine;
+import engine.MachineContext;
 import engine.util.MemoryChangeTracker;
 import org.junit.After;
 import org.junit.Before;
@@ -13,12 +14,14 @@ import static org.junit.Assert.*;
  */
 public class MemoryTest {
 
+    private MachineContext machine;
     private MemoryChangeTracker tracker;
 
     @Before
     public void setUp() {
         Machine.resetInstance();
-        tracker = new MemoryChangeTracker();
+        machine = Machine.getInstance();
+        tracker = new MemoryChangeTracker(machine);
     }
 
     @After
@@ -31,9 +34,9 @@ public class MemoryTest {
     @Test
     public void getContent_shouldReturnCorrectBytes() {
         MyByte[] data = {new MyByte(0x12), new MyByte(0x34), new MyByte(0x56), new MyByte(0x78)};
-        Machine.getInstance().getMemory().setContent(100, data);
+        machine.getMemory().setContent(100, data);
 
-        MyByte[] result = Machine.getInstance().getMemory().getContent(100, 4);
+        MyByte[] result = machine.getMemory().getContent(100, 4);
 
         assertEquals(4, result.length);
         assertEquals(0x12, result[0].getContent());
@@ -46,9 +49,9 @@ public class MemoryTest {
     public void getContentAsInt_shouldReturnCorrectSignedValue() {
         // Set bytes representing -1 (0xFFFFFFFF in two's complement)
         MyByte[] data = {new MyByte(0xFF), new MyByte(0xFF), new MyByte(0xFF), new MyByte(0xFF)};
-        Machine.getInstance().getMemory().setContent(200, data);
+        machine.getMemory().setContent(200, data);
 
-        int result = Machine.getInstance().getMemory().getContentAsInt(200, 4);
+        int result = machine.getMemory().getContentAsInt(200, 4);
 
         assertEquals(-1, result);
     }
@@ -58,7 +61,7 @@ public class MemoryTest {
         assertTrue("Changes should be empty initially", tracker.getChangedAddresses().isEmpty());
 
         MyByte[] data = {new MyByte(0x42)};
-        Machine.getInstance().getMemory().setContent(300, data);
+        machine.getMemory().setContent(300, data);
 
         assertTrue("Changes should track modified addresses", tracker.isChanged(300));
     }
@@ -66,7 +69,7 @@ public class MemoryTest {
     @Test
     public void resetChanges_shouldClearChangeTracking() {
         MyByte[] data = {new MyByte(0x42)};
-        Machine.getInstance().getMemory().setContent(400, data);
+        machine.getMemory().setContent(400, data);
         assertFalse("Changes should not be empty after write", tracker.getChangedAddresses().isEmpty());
 
         tracker.reset();
@@ -77,9 +80,9 @@ public class MemoryTest {
     @Test
     public void getRawByte_shouldReturnBytesAtAddress() {
         MyByte[] data = {new MyByte(0xAB)};
-        Machine.getInstance().getMemory().setContent(500, data);
+        machine.getMemory().setContent(500, data);
 
-        MyByte result = Machine.getInstance().getMemory().getRawByte(500);
+        MyByte result = machine.getMemory().getRawByte(500);
 
         assertEquals((byte) 0xAB, (byte) result.getContent());
     }
@@ -87,18 +90,18 @@ public class MemoryTest {
     @Test
     public void getRawByte_shouldReturnZeroForOutOfBounds() {
         // Addresses outside valid range should return 0 without error
-        MyByte result = Machine.getInstance().getMemory().getRawByte(-1);
+        MyByte result = machine.getMemory().getRawByte(-1);
         assertEquals(0, result.getContent());
 
-        MyByte result2 = Machine.getInstance().getMemory().getRawByte(Integer.MAX_VALUE);
+        MyByte result2 = machine.getMemory().getRawByte(Integer.MAX_VALUE);
         assertEquals(0, result2.getContent());
     }
 
     @Test
     public void memory_shouldBeInitializedToZero() {
         // Check a few random addresses
-        assertEquals(0, Machine.getInstance().getMemory().getRawByte(0).getContent());
-        assertEquals(0, Machine.getInstance().getMemory().getRawByte(1000).getContent());
-        assertEquals(0, Machine.getInstance().getMemory().getRawByte(500000).getContent());
+        assertEquals(0, machine.getMemory().getRawByte(0).getContent());
+        assertEquals(0, machine.getMemory().getRawByte(1000).getContent());
+        assertEquals(0, machine.getMemory().getRawByte(500000).getContent());
     }
 }

@@ -21,15 +21,20 @@ public class MemoryTableEntry {
     /** The adr. */
     String adr;
 
+    /** Memory change tracker for highlighting. */
+    private final MemoryChangeTracker tracker;
+
     /**
      * Konstruktor für einen Speicherzelleneintrag
      *
      * @param data Daten der Speicherzelle
      * @param adr  the adr
+     * @param tracker the memory change tracker (may be null)
      */
-    public MemoryTableEntry(ArrayList<MyByte> data, String adr) {
+    public MemoryTableEntry(ArrayList<MyByte> data, String adr, MemoryChangeTracker tracker) {
         this.data = data;
         this.adr = adr;
+        this.tracker = tracker;
     }
 
     /**
@@ -53,12 +58,6 @@ public class MemoryTableEntry {
         boolean html = false;
         StringBuffer ret2 = new StringBuffer(adr + " ");
         int address = Integer.parseInt(this.adr, 16);
-
-        // Get memory tracker from Window if available
-        MemoryChangeTracker tracker = null;
-        if (GuiState.getFrame() != null) {
-            tracker = GuiState.getFrame().getMemoryTracker();
-        }
 
         for (MyByte in : data) {
             boolean changed = tracker != null && tracker.isChanged(address);

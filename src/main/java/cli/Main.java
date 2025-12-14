@@ -1,25 +1,19 @@
 package cli;
 
-import engine.events.ExecutionEvent;
 import engine.events.MachineEvent;
 import engine.events.MachineEventListener;
 import engine.events.MemoryAccessErrorEvent;
+import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.Machine;
-import engine.state.Register;
-import engine.util.MemoryChangeTracker;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static engine.MachineConstants.REGISTER_COUNT;
 import static engine.Version.VERSION;
 
 /**
@@ -53,9 +47,12 @@ public class Main {
             return;
         }
 
+        // Get machine context (the interface for frontend interaction)
+        MachineContext machine = Machine.getInstance();
+
         // Set up error handler via event bus
         CliErrorHandler errorHandler = new CliErrorHandler();
-        Machine.getInstance().getEventBus().subscribe(MemoryAccessErrorEvent.class, errorHandler);
+        machine.getEventBus().subscribe(MemoryAccessErrorEvent.class, errorHandler);
 
         try {
             // Load program
@@ -65,7 +62,7 @@ public class Main {
             }
 
             // Assemble and load
-            if (!MachineUtils.assembleAndLoad(programText)) {
+            if (!MachineUtils.assembleAndLoad(machine, programText)) {
                 System.exit(1);
             }
 
@@ -76,15 +73,15 @@ public class Main {
                     System.exit(1);
                 }
                 try {
-                    MachineUtils.loadState(stateText, parsedArgs.useHex);
+                    MachineUtils.loadState(machine, stateText, parsedArgs.useHex);
                 } catch (IllegalArgumentException e) {
                     System.err.println("Error in state file: " + e.getMessage());
                     System.exit(1);
                 }
             }
 
-            // Run the machine using ExecutionController + events
-            runWithExecutionController(parsedArgs.useHex, parsedArgs.quiet);
+            // Run the program
+            runProgram(machine, parsedArgs.useHex, parsedArgs.quiet);
 
             // Report any errors that occurred during execution
             if (errorHandler.hasErrors()) {
@@ -94,7 +91,7 @@ public class Main {
 
             System.exit(errorHandler.hasErrors() ? 1 : 0);
         } finally {
-            Machine.getInstance().getEventBus().unsubscribe(MemoryAccessErrorEvent.class, errorHandler);
+            machine.getEventBus().unsubscribe(MemoryAccessErrorEvent.class, errorHandler);
         }
     }
 
@@ -180,26 +177,21 @@ public class Main {
         }
     }
 
-    private static void runWithExecutionController(boolean useHex, boolean quiet) {
+    private static void runProgram(MachineContext machine, boolean useHex, boolean quiet) {
         PrintStream out = System.out;
-        CliOutputHandler outputHandler = new CliOutputHandler(out, useHex, quiet);
+        ProgramRunner runner = machine.createRunner();
 
-        // Subscribe to execution events (STEP_COMPLETED contains the executed command)
-        Machine.getInstance().getEventBus().subscribe(ExecutionEvent.class, outputHandler);
-
-        try {
-            // Use ProgramRunner with step() for synchronous execution
-            ProgramRunner runner = Machine.getInstance().createRunner();
-            while (runner.step()) {
-                // step() returns false when program ends
-            }
-        } finally {
-            Machine.getInstance().getEventBus().unsubscribe(ExecutionEvent.class, outputHandler);
-        }
-
-        // For quiet mode, print final register state
         if (quiet) {
-            outputHandler.printFinalRegisterState();
+            QuietMachine quietMachine = new QuietMachine(machine, runner, out, useHex);
+            while (!quietMachine.hasHalted()) {
+                quietMachine.executeNext();
+            }
+            quietMachine.printRegisterState();
+        } else {
+            PrintingMachine printingMachine = new PrintingMachine(machine, runner, out, useHex);
+            while (!printingMachine.hasHalted()) {
+                printingMachine.executeNext();
+            }
         }
     }
 
@@ -208,155 +200,6 @@ public class Main {
         String stateFile;
         boolean useHex;
         boolean quiet;
-    }
-
-    /**
-     * Event listener for command execution to produce output.
-     * Replicates PrintingMachine output format using event-driven approach.
-     */
-    private static class CliOutputHandler implements MachineEventListener {
-        private final PrintStream out;
-        private final boolean printHex;
-        private final boolean quiet;
-        private final int[] previousRegValues = new int[REGISTER_COUNT];
-        private final Map<Integer, Byte> previousMemValues = new HashMap<>();
-        private final Map<String, Boolean> previousFlags = new HashMap<>();
-        private final MemoryChangeTracker memoryTracker;
-        private boolean initialized;
-
-        CliOutputHandler(PrintStream out, boolean printHex, boolean quiet) {
-            this.out = out;
-            this.printHex = printHex;
-            this.quiet = quiet;
-            this.memoryTracker = new MemoryChangeTracker();
-        }
-
-        @Override
-        public void onEvent(MachineEvent event) {
-            if (quiet) {
-                return; // In quiet mode, don't print per-command output
-            }
-            if (event instanceof ExecutionEvent) {
-                ExecutionEvent ee = (ExecutionEvent) event;
-                // Only handle STEP_COMPLETED events (avoid double-printing for PROGRAM_ENDED)
-                if (ee.getType() != ExecutionEvent.Type.STEP_COMPLETED) {
-                    return;
-                }
-
-                if (!initialized) {
-                    // Capture initial state
-                    for (Integer address : memoryTracker.getChangedAddresses()) {
-                        previousMemValues.put(address, Machine.getInstance().getMemory().readByte(address));
-                    }
-                    fillCurrentFlags(previousFlags);
-                    initialized = true;
-                }
-
-                out.println("INS: " + ee.getCommand());
-                printRegisterValues();
-                out.println();
-                printFlags();
-                out.println();
-                printMemoryValues();
-                out.println();
-                out.println();
-            }
-        }
-
-        private void fillCurrentFlags(Map<String, Boolean> flags) {
-            flags.put("C", Machine.getInstance().getFlags().isCarry());
-            flags.put("N", Machine.getInstance().getFlags().isNegative());
-            flags.put("V", Machine.getInstance().getFlags().isOverflow());
-            flags.put("Z", Machine.getInstance().getFlags().isZero());
-        }
-
-        private void printRegisterValues() {
-            Separator separator = new Separator(out);
-            for (int i = 0; i < REGISTER_COUNT; i++) {
-                Register register = Machine.getInstance().getRegisters().getRegister(i);
-                int regValue = register.getContentAsNumber(4);
-                if (previousRegValues[i] == regValue && regValue == 0)
-                    continue;
-                if (previousRegValues[i] != regValue) {
-                    String format = printHex ? "R%s: %02X -> %02X" : "R%s: %d -> %d";
-                    separator.printColumn(String.format(format, i, previousRegValues[i], regValue));
-                } else {
-                    String format = printHex ? "R%s: %02X" : "R%s: %d";
-                    separator.printColumn(String.format(format, i, regValue));
-                }
-                previousRegValues[i] = regValue;
-            }
-        }
-
-        private void printFlags() {
-            Map<String, Boolean> flags = new HashMap<>();
-            fillCurrentFlags(flags);
-            Separator separator = new Separator(out);
-            for (String flag : flags.keySet()) {
-                if (flags.get(flag) != previousFlags.get(flag)) {
-                    String format = printHex ? "%s: %02X -> %02X" : "%s: %d -> %d";
-                    separator.printColumn(String.format(format, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
-                } else {
-                    String format = printHex ? "%s: %02X" : "%s: %d";
-                    separator.printColumn(String.format(format, flag, asBit(flags.get(flag))));
-                }
-            }
-            fillCurrentFlags(previousFlags);
-        }
-
-        private void printMemoryValues() {
-            java.util.List<Integer> sortedAddresses = new ArrayList<>(memoryTracker.getChangedAddresses());
-            Collections.sort(sortedAddresses);
-            Separator separator = new Separator(out);
-
-            for (Integer address : sortedAddresses) {
-                byte currentByte = Machine.getInstance().getMemory().readByte(address);
-                int currentValue = currentByte & 0xFF;
-                int previousValue = previousMemValues.containsKey(address) ? (previousMemValues.get(address) & 0xFF) : 0;
-
-                if (previousValue == 0 && currentValue == 0)
-                    continue;
-
-                previousMemValues.put(address, currentByte);
-                if (previousValue != currentValue) {
-                    String format = printHex ? "%02X: %02X -> %02X" : "%d: %d -> %d";
-                    separator.printColumn(String.format(format, address, previousValue, currentValue));
-                } else {
-                    String format = printHex ? "%02X: %02X" : "%d: %d";
-                    separator.printColumn(String.format(format, address, currentValue));
-                }
-            }
-        }
-
-        void printFinalRegisterState() {
-            String format = printHex ? "R%s: 0x%X" : "R%s: %d";
-            for (int i = 0; i < REGISTER_COUNT; i++) {
-                Register register = Machine.getInstance().getRegisters().getRegister(i);
-                int regValue = register.getContentAsNumber(4);
-                out.println(String.format(format, i, regValue));
-            }
-        }
-
-        private static int asBit(boolean value) {
-            return value ? 1 : 0;
-        }
-
-        static class Separator {
-            private boolean first = true;
-            private final PrintStream out;
-
-            Separator(PrintStream out) {
-                this.out = out;
-            }
-
-            void printColumn(String column) {
-                if (!first) {
-                    out.print("; ");
-                }
-                out.print(column);
-                first = false;
-            }
-        }
     }
 
     /**

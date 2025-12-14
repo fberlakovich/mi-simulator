@@ -154,7 +154,7 @@ public class NumberConversion {
             ret += "00000000".substring(0, 8 - bin.length()) + bin;
         }
         ret = ret.indexOf("1") == -1 ? "" : ret.substring(ret.indexOf("1"));
-        return ret == "" ? "0" : ret;
+        return ret.isEmpty() ? "0" : ret;
     }
 
     /**
@@ -266,12 +266,15 @@ public class NumberConversion {
     public static String negateBinary(String in, int length) {
         String neu = "";
         for (int i = 0; i < in.length(); i++) {
-            switch (in.getBytes()[i]) {
+            switch (in.charAt(i)) {
                 case '0':
                     neu += "1";
                     break;
                 case '1':
                     neu += "0";
+                    break;
+                default:
+                    // Non-binary character - should not happen for valid binary strings
                     break;
             }
 
@@ -284,7 +287,7 @@ public class NumberConversion {
         boolean carry = true;
         String erg = "";
         for (int i = (neu.length() - 1); i >= 0; i--) {
-            switch (neu.getBytes()[i]) {
+            switch (neu.charAt(i)) {
                 case '0':
                     if (carry) {
                         erg = "1" + erg;
@@ -303,7 +306,9 @@ public class NumberConversion {
                     }
 
                     break;
-
+                default:
+                    // Non-binary character - should not happen for valid binary strings
+                    break;
             }
         }
 

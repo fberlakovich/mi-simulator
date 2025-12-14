@@ -3,6 +3,7 @@ package gui;
 import engine.events.MachineEvent;
 import engine.events.MachineEventListener;
 import engine.events.RegisterChangeEvent;
+import engine.MachineContext;
 import engine.Machine;
 import engine.state.MyByte;
 import engine.util.NumberConversion;
@@ -14,19 +15,26 @@ import java.awt.*;
 
 class RegistersPanel extends JPanel implements MachineEventListener {
     private final JTextField[] registerTextFields = new JTextField[CONSTANTS.NUMBER_OF_REGISTER];
-    private final RegisterChangeTracker changeTracker = new RegisterChangeTracker();
+    private final RegisterChangeTracker changeTracker;
+    private final MachineContext machine;
+    private final DisplaySettings displaySettings;
+    private final Runnable uiUpdateCallback;
 
-    public RegistersPanel() {
+    public RegistersPanel(MachineContext machine, DisplaySettings displaySettings, Runnable uiUpdateCallback) {
+        this.machine = machine;
+        this.displaySettings = displaySettings;
+        this.uiUpdateCallback = uiUpdateCallback;
+        this.changeTracker = new RegisterChangeTracker(machine);
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         add(createScrollPanel());
-        Machine.getInstance().getEventBus().subscribe(RegisterChangeEvent.class, this);
+        machine.getEventBus().subscribe(RegisterChangeEvent.class, this);
     }
 
     @Override
     public void onEvent(MachineEvent event) {
         if (event instanceof RegisterChangeEvent) {
             RegisterChangeEvent rce = (RegisterChangeEvent) event;
-            SwingUtilities.invokeLater(() -> updateRegister(rce.getRegisterIndex(), GuiState.getRegView()));
+            SwingUtilities.invokeLater(() -> updateRegister(rce.getRegisterIndex(), displaySettings.getRegisterView()));
         }
     }
 
@@ -39,7 +47,7 @@ class RegistersPanel extends JPanel implements MachineEventListener {
     }
 
     private void updateRegister(int regNum, RegisterViewType regview) {
-        Register register = Machine.getInstance().getRegisters().getRegister(regNum);
+        Register register = machine.getRegisters().getRegister(regNum);
         MyByte[] content = register.getContent(4);
         boolean changed = changeTracker.isChanged(regNum);
 
@@ -50,13 +58,13 @@ class RegistersPanel extends JPanel implements MachineEventListener {
                 break;
             case BINARY:
                 text = NumberConversion.myBytetoBin(content);
-                if (GuiState.isShowLeadingZeros()) {
+                if (displaySettings.isShowLeadingZeros()) {
                     text = String.format("%1$" + CONSTANTS.WORD_SIZE * 8 + "s", text).replace(" ", "0");
                 }
                 break;
             case HEX:
                 text = NumberConversion.myBytetoHex(content);
-                if (GuiState.isShowLeadingZeros()) {
+                if (displaySettings.isShowLeadingZeros()) {
                     text = String.format("%1$" + CONSTANTS.WORD_SIZE * 2 + "s", text).replace(" ", "0");
                 }
                 break;
@@ -80,7 +88,7 @@ class RegistersPanel extends JPanel implements MachineEventListener {
 
     public void updateRegisterValues() {
         for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            updateRegister(i, GuiState.getRegView());
+            updateRegister(i, displaySettings.getRegisterView());
         }
     }
 
@@ -92,13 +100,15 @@ class RegistersPanel extends JPanel implements MachineEventListener {
         chooser.addItem(RegisterViewType.BINARY);
         chooser.addItem(RegisterViewType.HEX);
         chooser.addItem(RegisterViewType.FLOAT);
-        chooser.setSelectedItem(GuiState.getRegView());
+        chooser.setSelectedItem(displaySettings.getRegisterView());
         chooser.addActionListener(evt -> {
             @SuppressWarnings("unchecked") JComboBox<RegisterViewType> cb = (JComboBox<RegisterViewType>) evt.getSource();
 
             RegisterViewType selectedViewType = cb.getItemAt(cb.getSelectedIndex());
-            GuiState.setRegView(selectedViewType);
-            GuiState.getFrame().updateUI();
+            displaySettings.setRegisterView(selectedViewType);
+            if (uiUpdateCallback != null) {
+                uiUpdateCallback.run();
+            }
         });
 
         chooserPanel.add(chooser);

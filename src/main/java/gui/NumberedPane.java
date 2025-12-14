@@ -1,5 +1,6 @@
 package gui;
 
+import engine.MachineContext;
 import engine.Machine;
 
 import javax.swing.*;
@@ -57,10 +58,32 @@ public class NumberedPane extends JPanel {
     private ImageIcon icon2;
 
     /**
-     * Instanziiert ein NumberedPane
+     * Machine context for state access.
      */
-    public NumberedPane() {
+    private final MachineContext machine;
+
+    /**
+     * Display settings for syntax highlighting.
+     */
+    private final DisplaySettings displaySettings;
+
+    /**
+     * Callback for text change notifications.
+     */
+    private final Runnable textChangeCallback;
+
+    /**
+     * Instanziiert ein NumberedPane
+     *
+     * @param machine the machine context
+     * @param displaySettings settings for syntax highlighting
+     * @param textChangeCallback callback when text changes
+     */
+    public NumberedPane(MachineContext machine, DisplaySettings displaySettings, Runnable textChangeCallback) {
         super();
+        this.machine = machine;
+        this.displaySettings = displaySettings;
+        this.textChangeCallback = textChangeCallback;
 
         URL resource1 = getClass().getResource("/images/icon2.gif");
         URL resource2 = getClass().getResource("/images/icon1.gif");
@@ -70,7 +93,7 @@ public class NumberedPane extends JPanel {
         setMinimumSize(new Dimension(50, 40));
         setPreferredSize(new Dimension(50, 40));
 
-        textPane = new HighlightedJPane() {
+        textPane = new HighlightedJPane(displaySettings, textChangeCallback) {
             /**
              *
              */
@@ -164,19 +187,19 @@ public class NumberedPane extends JPanel {
         for (int line = startline, y = starting_y;
              line <= endline; y += fontHeight, line++) {
             if (line > lineNumberLabels.size()) {
-                LineNumberLabel newLabel = new LineNumberLabel(Integer.toString(line), icon1, icon2);
+                LineNumberLabel newLabel = new LineNumberLabel(Integer.toString(line), icon1, icon2, machine, SwingUtilities.getWindowAncestor(this));
                 newLabel.addMouseListener(new MouseAdapter() {
                     @Override
                     public void mouseClicked(MouseEvent arg0) {
                         if (arg0.getClickCount() == 2) {
 
-                            if (Machine.getInstance().isCompiled()) {
+                            if (machine.isCompiled()) {
                                 LineNumberLabel inp = (LineNumberLabel) arg0.getSource();
                                 inp.setStatus(!inp.getStatus());
 
                             } else {
                                 JOptionPane.showMessageDialog(
-                                        GuiState.getFrame(),
+                                        SwingUtilities.getWindowAncestor(NumberedPane.this),
                                         CONSTANTS.ERROR_SETBREAKPOINT_NOT_ASSEMBLED,
                                         CONSTANTS.ERROR_SETBREAKPOINT_TITEL,
                                         JOptionPane.ERROR_MESSAGE);

@@ -3,6 +3,8 @@ package engine;
 import engine.program.Program;
 import engine.commands.Command;
 import engine.events.MachineEventBus;
+import engine.events.MachineResetEvent;
+import engine.events.ProgramLoadedEvent;
 import engine.state.Flags;
 import engine.state.Memory;
 import engine.state.Register;
@@ -25,7 +27,7 @@ import static engine.MachineConstants.MEMORY_SIZE;
  *
  * Execution state (next command, stop flag) is managed by ProgramRunner.
  */
-public class Machine {
+public class Machine implements MachineContext {
 
     /**
      * Global machine instance for static access.
@@ -73,9 +75,20 @@ public class Machine {
     }
 
     /**
-     * Creates a new MI machine with fresh state.
+     * Creates a new isolated Machine instance for testing.
+     * Use this instead of the constructor for test isolation.
+     *
+     * @return a fresh Machine instance
      */
-    public Machine() {
+    public static Machine createInstance() {
+        return new Machine();
+    }
+
+    /**
+     * Creates a new MI machine with fresh state.
+     * Private constructor - use getInstance() for the singleton or createInstance() for testing.
+     */
+    private Machine() {
         this.memory = new Memory();
         this.registers = new RegisterBody();
         this.flags = new Flags();
@@ -85,6 +98,9 @@ public class Machine {
         this.memoryErrorHandler = null;
         this.program = null;
         this.activeRunner = null;
+
+        // Wire event bus to state objects for event publishing
+        this.flags.setEventBus(this.eventBus);
     }
 
     /**
@@ -103,6 +119,9 @@ public class Machine {
         memoryErrorHandler = null;
         program = null;
         activeRunner = null;
+
+        // Notify frontends of reset
+        eventBus.publish(new MachineResetEvent());
     }
 
     // ========================================================================
@@ -210,6 +229,11 @@ public class Machine {
      */
     public void setProgram(Program program) {
         this.program = program;
+        if (program != null) {
+            eventBus.publish(new ProgramLoadedEvent(
+                    "program",
+                    program.getCommands().size()));
+        }
     }
 
     /**

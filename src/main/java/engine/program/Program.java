@@ -1,6 +1,6 @@
 package engine.program;
 
-import Exceptions.NoCommandException;
+import engine.exceptions.NoCommandException;
 import engine.Machine;
 import engine.commands.Command;
 import engine.state.MyByte;
@@ -248,23 +248,6 @@ public class Program {
     public ArrayList<Command> getCommands() {
 
         return program;
-    }
-
-    /**
-     * Prints the bytecode to stdout.
-     */
-    public void print() {
-        int count = 0;
-        for (Command command : program) {
-            byte[] encoded = command.encode();
-            for (byte b : encoded) {
-                System.out.printf("%02X ", b & 0xFF);
-                count++;
-                if (count == 8) {
-                    count = 0;
-                }
-            }
-        }
     }
 
     /**

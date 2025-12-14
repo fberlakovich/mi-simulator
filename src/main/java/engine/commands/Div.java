@@ -241,6 +241,8 @@ public class Div extends Command {
                             && ope22 != 0);
 
                     break;
+                default:
+                    throw new IllegalStateException("Unsupported floating point length: " + length);
             }
 
         } else {
@@ -313,6 +315,9 @@ public class Div extends Command {
                 break;
             case 8:
                 bhwfd = "D";
+                break;
+            default:
+                bhwfd = "?";
                 break;
         }
         return "DIV " + bhwfd + " " + op1.toString() + ", " + op2.toString() + (three ?

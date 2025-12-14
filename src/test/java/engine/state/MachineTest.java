@@ -17,7 +17,7 @@ public class MachineTest {
 
     @Before
     public void setUp() {
-        machine = new Machine();
+        machine = Machine.createInstance();
     }
 
     @Test

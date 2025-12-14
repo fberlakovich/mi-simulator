@@ -240,6 +240,8 @@ public class Sub extends Command {
                     machine.getFlags().setOverflow(Double.isInfinite(erg_11));
 
                     break;
+                default:
+                    throw new IllegalStateException("Unsupported floating point length: " + length);
             }
 
         } else {
@@ -321,6 +323,9 @@ public class Sub extends Command {
                 break;
             case 8:
                 bhwfd = "D";
+                break;
+            default:
+                bhwfd = "?";
                 break;
         }
         return "SUB " + bhwfd + " " + op1.toString() + ", " + op2.toString() + (three ?

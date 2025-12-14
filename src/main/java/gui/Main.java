@@ -19,9 +19,7 @@ public class Main {
                 Window inst = new Window();
                 inst.setVisible(true);
                 inst.resetSize();
-                GuiState.setFrame(inst);
                 inst.setLocationRelativeTo(null);
-
             }
         });
     }

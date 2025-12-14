@@ -3,7 +3,7 @@ package engine.util;
 import engine.events.MachineEvent;
 import engine.events.MachineEventListener;
 import engine.events.MemoryUpdateEvent;
-import engine.Machine;
+import engine.MachineContext;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -16,7 +16,7 @@ import java.util.Set;
  *
  * Usage:
  * <pre>
- * MemoryChangeTracker tracker = new MemoryChangeTracker();
+ * MemoryChangeTracker tracker = new MemoryChangeTracker(machine);
  * // ... program runs, memory changes ...
  * Set<Integer> changed = tracker.getChangedAddresses();
  * tracker.reset(); // Clear for next instruction/step
@@ -24,15 +24,21 @@ import java.util.Set;
  */
 public class MemoryChangeTracker implements MachineEventListener {
 
+    /** The machine context for accessing memory and event bus */
+    private final MachineContext machine;
+
     /** Set of addresses that have been modified since last reset */
     private final Set<Integer> changedAddresses = new HashSet<>();
 
     /**
      * Creates a new tracker and subscribes to memory events.
      * Scans existing memory for non-zero values to capture already-loaded programs.
+     *
+     * @param machine the machine context to track
      */
-    public MemoryChangeTracker() {
-        Machine.getInstance().getEventBus().subscribe(MemoryUpdateEvent.class, this);
+    public MemoryChangeTracker(MachineContext machine) {
+        this.machine = machine;
+        machine.getEventBus().subscribe(MemoryUpdateEvent.class, this);
         // Scan memory for non-zero values to capture already-loaded programs
         scanExistingMemory();
     }
@@ -42,7 +48,7 @@ public class MemoryChangeTracker implements MachineEventListener {
      * This captures memory that was written before this tracker was created.
      */
     private void scanExistingMemory() {
-        byte[] memoryData = Machine.getInstance().getMemory().read(0,
+        byte[] memoryData = machine.getMemory().read(0,
                 engine.MachineConstants.MEMORY_SIZE);
         for (int i = 0; i < memoryData.length; i++) {
             if (memoryData[i] != 0) {
@@ -99,6 +105,6 @@ public class MemoryChangeTracker implements MachineEventListener {
      * Call this when the tracker is no longer needed.
      */
     public void cleanup() {
-        Machine.getInstance().getEventBus().unsubscribe(MemoryUpdateEvent.class, this);
+        machine.getEventBus().unsubscribe(MemoryUpdateEvent.class, this);
     }
 }

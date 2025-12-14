@@ -260,6 +260,9 @@ public class Or extends Command {
             case 4:
                 bhwfd = "W";
                 break;
+            default:
+                bhwfd = "?";
+                break;
         }
         return "OR " + bhwfd + " " + op1.toString() + ", " + op2.toString() + (three ?
                 ", " + op3.toString() :

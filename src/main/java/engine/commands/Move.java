@@ -168,6 +168,8 @@ public class Move extends Command {
                     negative = Double.longBitsToDouble(
                             NumberConversion.myBytetoLongWithoutSign(merke)) < 0;
                     break;
+                default:
+                    throw new IllegalStateException("Unsupported floating point length: " + length);
             }
         } else {
             int cc = NumberConversion.myBytetoIntWithSign(merke);
@@ -219,6 +221,9 @@ public class Move extends Command {
                 break;
             case 8:
                 bhwfd = "D";
+                break;
+            default:
+                bhwfd = "?";
                 break;
         }
         return "MOVE " + bhwfd + " " + op1.toString() + ", " + op2.toString();

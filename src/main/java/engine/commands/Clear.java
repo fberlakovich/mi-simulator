@@ -184,6 +184,9 @@ public class Clear extends Command {
             case 8:
                 bhwfd = "D";
                 break;
+            default:
+                bhwfd = "?";
+                break;
         }
         return "CLEAR " + bhwfd + " " + op1.toString();
     }
