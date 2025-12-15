@@ -3,14 +3,14 @@ plugins {
     id 'application'
     id 'jacoco'
     id 'org.openrewrite.rewrite' version '6.17.0'
-    id 'info.solidsoft.pitest' version '1.15.0'
+    id 'info.solidsoft.pitest' version '1.19.0-rc.2'
     id 'pmd'
     id 'com.github.spotbugs' version '6.0.26'
     id 'checkstyle'
 }
 
-group 'de.unibw.mnp'
-version '1.14'
+group = 'de.unibw.mnp'
+version = '1.14'
 
 java {
     toolchain {
@@ -25,6 +25,7 @@ repositories {
 dependencies {
     implementation 'org.drjekyll:fontchooser:2.4'
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.assertj:assertj-swing-junit:3.17.1'
 
     // OpenRewrite dependencies
     rewrite platform('org.openrewrite.recipe:rewrite-recipe-bom:2.17.0')
@@ -58,15 +59,30 @@ tasks.register('cli-jar', Jar) {
 }
 
 test {
-    useJUnit()
+    useJUnit {
+        // Exclude GUI tests when -PskipGuiTests is passed
+        if (project.hasProperty('skipGuiTests')) {
+            excludeCategories 'gui.GuiTest'
+        }
+    }
     finalizedBy jacocoTestReport
-    
+
     // Add timeout to detect hanging tests (e.g., deadlocks)
     // Individual tests can override with @Test(timeout=...)
     systemProperty 'junit.jupiter.execution.timeout.default', '10s'
-    
+
     // For JUnit 4, we need to use test timeout at the task level
-    timeout = java.time.Duration.ofSeconds(300) // 5 minutes for entire test suite
+    // Allow overriding via -PtestTimeout=<seconds> (default: 5 minutes, 10 minutes for GUI tests in Docker)
+    def timeoutSeconds = project.hasProperty('testTimeout') ? project.property('testTimeout').toInteger() : 300
+    timeout = java.time.Duration.ofSeconds(timeoutSeconds)
+
+    // Fork a new JVM every 5 tests to avoid OOM with GUI tests (each Window creates 1MB Memory)
+    // Use -PforkEveryTests=N to customize
+    def forkEveryCount = project.hasProperty('forkEveryTests') ? project.property('forkEveryTests').toInteger() : 5
+    forkEvery = forkEveryCount
+
+    // Set JVM heap size for tests (increased for GUI tests with 1MB Memory per Window)
+    maxHeapSize = "1g"
 }
 
 jacoco {

@@ -171,7 +171,7 @@ public class Xor extends Command {
         }
         if (three) {
             for (byte element : opc3) {
-            ret[x] = new MyByte(element);
+                ret[x] = new MyByte(element);
                 x++;
             }
         }

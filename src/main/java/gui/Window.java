@@ -240,10 +240,13 @@ public class Window extends javax.swing.JFrame {
 
 
     /**
-     * Konstruktor für das Fenster
+     * Konstruktor für das Fenster mit injizierter Machine.
+     *
+     * @param machine the machine context to use
      */
-    public Window() {
+    public Window(MachineContext machine) {
         super();
+        this.machine = machine;
         initGUI();
 
         addWindowListener(new WindowAdapter() {
@@ -306,7 +309,6 @@ public class Window extends javax.swing.JFrame {
 
         codePanel.setLayout(new BoxLayout(codePanel, BoxLayout.Y_AXIS));
         setTitle(CONSTANTS.TITLE + " - unbenannt.mi");
-        machine = Machine.getInstance();
         memoryTracker = new MemoryChangeTracker(machine);
         programController = new ProgramController(machine, memoryTracker, createExecutionCallback());
         machine.reset();
@@ -390,6 +392,7 @@ public class Window extends javax.swing.JFrame {
         setJMenuBar(jMenuBar1);
         {
             file_menu = new JMenu();
+            file_menu.setName("file_menu");
             jMenuBar1.add(file_menu);
             file_menu.setText("Datei");
             {
@@ -649,7 +652,6 @@ public class Window extends javax.swing.JFrame {
      */
     private void handleStop() {
         programController.stop();
-        text.highlightNextCommand(programController.getRunner(), machine);
         text.highlightNextCommand(programController.getRunner(), machine);
 
         buttonPanel.getBtnStop().setEnabled(false);

@@ -33,7 +33,7 @@ public class MachineUtils {
         Parser parser = new Parser((Machine) machine, scanner);
         parser.start();
         if (!parser.eval()) {
-            System.err.println(parser.getErrorMeassge().getErrorMessage());
+            System.err.println(parser.getErrorMessage().getErrorMessage());
             return false;
         }
         Program program = parser.getProgramm();

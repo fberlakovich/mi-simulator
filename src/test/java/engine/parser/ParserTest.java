@@ -43,7 +43,7 @@ public class ParserTest {
 
     private Program parseSuccessfully(String source) {
         Parser parser = createParser(source);
-        assertTrue("Expected successful parse but got error: " + parser.getErrorMeassge().getErrorMessage(),
+        assertTrue("Expected successful parse but got error: " + parser.getErrorMessage().getErrorMessage(),
                 parser.eval());
         return parser.getProgramm();
     }
@@ -56,7 +56,7 @@ public class ParserTest {
     private void expectParseError(String source, String expectedErrorSubstring) {
         Parser parser = createParser(source);
         assertFalse("Expected parse error", parser.eval());
-        String error = parser.getErrorMeassge().getErrorMessage();
+        String error = parser.getErrorMessage().getErrorMessage();
         assertTrue("Expected error containing '" + expectedErrorSubstring + "' but got: " + error,
                 error.contains(expectedErrorSubstring));
     }

@@ -64,7 +64,7 @@ public class ProgramController {
         parser.start();
 
         Program program = parser.getProgramm();
-        String errorMessage = parser.getErrorMeassge().getErrorMessage();
+        String errorMessage = parser.getErrorMessage().getErrorMessage();
 
         if (parser.eval()) {
             if (program.compile()) {
@@ -78,7 +78,7 @@ public class ProgramController {
                 return new AssembleResult(false, program, null, CONSTANTS.ASSEMBLE_UNSUCCESSFUL);
             }
         } else {
-            String msg = errorMessage.length() > 0 ? errorMessage : parser.getErrorMeassge().toString();
+            String msg = errorMessage.length() > 0 ? errorMessage : parser.getErrorMessage().toString();
             callback.onAssembleFailure(msg);
             return new AssembleResult(false, program, null, msg);
         }

@@ -266,7 +266,8 @@ public class NumberConversion {
     public static String negateBinary(String in, int length) {
         String neu = "";
         for (int i = 0; i < in.length(); i++) {
-            switch (in.charAt(i)) {
+            char c = in.charAt(i);
+            switch (c) {
                 case '0':
                     neu += "1";
                     break;
@@ -274,8 +275,8 @@ public class NumberConversion {
                     neu += "0";
                     break;
                 default:
-                    // Non-binary character - should not happen for valid binary strings
-                    break;
+                    throw new IllegalArgumentException(
+                            "Invalid binary character: '" + c + "' in string: " + in);
             }
 
         }
@@ -287,7 +288,8 @@ public class NumberConversion {
         boolean carry = true;
         String erg = "";
         for (int i = (neu.length() - 1); i >= 0; i--) {
-            switch (neu.charAt(i)) {
+            char ch = neu.charAt(i);
+            switch (ch) {
                 case '0':
                     if (carry) {
                         erg = "1" + erg;
@@ -307,8 +309,8 @@ public class NumberConversion {
 
                     break;
                 default:
-                    // Non-binary character - should not happen for valid binary strings
-                    break;
+                    throw new IllegalArgumentException(
+                            "Invalid binary character: '" + ch + "' in string: " + neu);
             }
         }
 

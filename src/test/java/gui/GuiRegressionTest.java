@@ -1,5 +1,7 @@
 package gui;
 
+import engine.Machine;
+import engine.MachineContext;
 import org.assertj.swing.core.GenericTypeMatcher;
 import org.assertj.swing.core.Settings;
 import org.assertj.swing.edt.GuiActionRunner;
@@ -57,7 +59,9 @@ public class GuiRegressionTest extends AssertJSwingJUnitTestCase {
         settings.delayBetweenEvents(50);  // Faster execution
         settings.eventPostingDelay(20);
 
-        Window frame = GuiActionRunner.execute(() -> new Window());
+        // Create fresh Machine instance for each test
+        MachineContext machine = Machine.createInstance();
+        Window frame = GuiActionRunner.execute(() -> new Window(machine));
         window = new FrameFixture(robot(), frame);
         window.show();
     }

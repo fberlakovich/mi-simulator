@@ -174,7 +174,7 @@ public class Parser {
      *
      * @return the error message
      */
-    public ErrorMessage getErrorMeassge() {
+    public ErrorMessage getErrorMessage() {
         return state.getError();
     }
 

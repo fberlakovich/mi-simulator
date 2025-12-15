@@ -40,8 +40,8 @@ public class Register {
         this(nr);
         this.isStack = isStack;
         if (isStack) {
-            // Initialize stack pointer to top of memory (MEMORY_SIZE)
-            content = engine.MachineConstants.MEMORY_SIZE;
+            // Initialize stack pointer to top valid address (MEMORY_SIZE - 1)
+            content = engine.MachineConstants.MEMORY_SIZE - 1;
         }
     }
 
