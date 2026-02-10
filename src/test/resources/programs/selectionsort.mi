@@ -1,0 +1,50 @@
+        SEG
+        MOVE W I 3000, R0
+        MOVE W I 64, !R0+
+        MOVE W I 25, !R0+
+        MOVE W I 12, !R0+
+        MOVE W I 22, !R0+
+        MOVE W I 11, !R0
+        MOVE W I 3000, R0
+        MOVE W I 5, R1
+        MOVE W I 0, R2
+outer:  CMP W R2, R1
+        JGE done
+        MOVE W R2, R3
+        MOVE W R2, R4
+        ADD W I 1, R4
+inner:  CMP W R4, R1
+        JGE swap
+        MOVE W R0, R5
+        MOVE W R3, R6
+        MULT W I 4, R6
+        ADD W R6, R5
+        MOVE W !R5, R7
+        MOVE W R0, R5
+        MOVE W R4, R6
+        MULT W I 4, R6
+        ADD W R6, R5
+        MOVE W !R5, R8
+        CMP W R8, R7
+        JGE skip
+        MOVE W R4, R3
+skip:   ADD W I 1, R4
+        JUMP inner
+swap:   CMP W R2, R3
+        JEQ next
+        MOVE W R0, R5
+        MOVE W R2, R6
+        MULT W I 4, R6
+        ADD W R6, R5
+        MOVE W !R5, R7
+        MOVE W R0, R8
+        MOVE W R3, R6
+        MULT W I 4, R6
+        ADD W R6, R8
+        MOVE W !R8, R9
+        MOVE W R9, !R5
+        MOVE W R7, !R8
+next:   ADD W I 1, R2
+        JUMP outer
+done:   HALT
+        END

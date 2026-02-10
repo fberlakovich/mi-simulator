@@ -1,0 +1,25 @@
+          SEG
+
+          MOVE W I 1000, R14
+
+          MOVE W I H'DEADBEEF', R0
+          MOVE W R0, -!R14
+
+          MOVE W I H'CAFEBABE', R1
+          MOVE W R1, -!R14
+
+          MOVE W I H'12345678', R2
+          MOVE W R2, -!R14
+
+          MOVE W !R14+, R3
+
+          MOVE W !R14+, R4
+
+          MOVE W !R14+, R5
+
+          CMP W R0, R5
+          CMP W R1, R4
+          CMP W R2, R3
+
+          HALT
+          END

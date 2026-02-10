@@ -1,11 +1,11 @@
 package gui;
 
-import enviroment.Enviroment;
-import enviroment.NumberConversion;
-import scanner.Scanner;
-import scanner.Token;
-import simulator.Command;
-import simulator.DD;
+import engine.MachineContext;
+import engine.ProgramRunner;
+import engine.scanner.Scanner;
+import engine.scanner.Token;
+import engine.commands.Command;
+import engine.commands.DD;
 
 import javax.swing.*;
 import javax.swing.event.UndoableEditEvent;
@@ -112,11 +112,25 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
     final UndoManager undomanager = new UndoManager();
 
     /**
-     * Dieser Kontruktor erzeugt eine JTexPane, die MI-Assembler-Code einfärben
-     * kann.
+     * Display settings for syntax highlighting preference.
      */
-    public HighlightedJPane() {
+    private DisplaySettings displaySettings;
+
+    /**
+     * Callback for text change notifications.
+     */
+    private Runnable textChangeCallback;
+
+    /**
+     * Constructor with dependency injection.
+     *
+     * @param displaySettings settings for syntax highlighting
+     * @param textChangeCallback callback when text changes
+     */
+    public HighlightedJPane(DisplaySettings displaySettings, Runnable textChangeCallback) {
         super();
+        this.displaySettings = displaySettings;
+        this.textChangeCallback = textChangeCallback;
         setFont(CONSTANTS.FONT);
         StyleConstants.setForeground(keyWord, new Color(60, 120, 60));
         StyleConstants.setForeground(number, new Color(60, 60, 180));
@@ -148,10 +162,26 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
     }
 
     /**
+     * Checks if syntax highlighting is enabled.
+     */
+    private boolean isSyntaxHighlightingEnabled() {
+        return displaySettings != null && displaySettings.isSyntaxHighlighting();
+    }
+
+    /**
+     * Notifies that text has changed.
+     */
+    private void notifyTextChanged() {
+        if (textChangeCallback != null) {
+            textChangeCallback.run();
+        }
+    }
+
+    /**
      * Diese Methode färbt alle erkannten Token im im ganzen Text
      */
     public void doHighLighting() {
-        if (Enviroment.shl) {
+        if (isSyntaxHighlightingEnabled()) {
             Token ret;
             Scanner scan = new Scanner(true);
             scan.init(getText());
@@ -218,7 +248,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
                 setCharacterAttributes(getStyledDocument(), in.getBeg(),
                         in.getEnd() - in.getBeg(), string);
                 break;
-            case Scanner.TOKEN_FEHLER:
+            case Scanner.TOKEN_ERROR:
                 setCharacterAttributes(getStyledDocument(), in.getBeg(),
                         in.getEnd() - in.getBeg(), fehler);
                 break;
@@ -243,7 +273,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
      */
     public void highlight(int beg, int end, boolean diff_opcode) {
         setCharacterAttributes(getStyledDocument(), highl_beg_old, highl_end_old,
-                Enviroment.shl ? keyWord : norm);
+                isSyntaxHighlightingEnabled() ? keyWord : norm);
         highl_beg_old = beg;
         highl_end_old = end;
         setCharacterAttributes(getStyledDocument(), beg, end,
@@ -252,15 +282,16 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
 
     /**
      * Highlighted den nächsten Befehl
+     *
+     * @param runner  the program runner (may be null)
+     * @param machine the machine context for command lookup
      */
-    public void highlightNextCommand() {
-        if (Enviroment.getNextCommand() != null) {
-            Command next = Enviroment.getCommandperAddress(
-                    Enviroment.getNextCommand().getAdress());
+    public void highlightNextCommand(ProgramRunner runner, MachineContext machine) {
+        Command nextCommand = runner != null ? runner.getNextCommand() : null;
+        if (nextCommand != null) {
+            Command next = machine.getCommandAtAddress(nextCommand.getAdress());
             if (next != null) {
-                if (NumberConversion.myByteEqual(next.getOpCode(),
-                        Enviroment.getNextCommand()
-                                .getOpCode())
+                if (java.util.Arrays.equals(next.encode(), nextCommand.encode())
                         && !(next instanceof DD)) {
                     highlight(next.getBeg(), next.getEnd() - next.getBeg(),
                             false);
@@ -301,7 +332,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
             if (compiled) {
                 compiled = false;
                 setBackground(new Color(255, 255, 255));
-                Enviroment.frame.textChanged();
+                notifyTextChanged();
             }
             doHighLighting();
             oldText = getText();
@@ -379,7 +410,7 @@ public class HighlightedJPane extends JTextPane implements KeyListener {
     public void setText(String text) {
         super.setText(text);
         setCompiled(false);
-        Enviroment.frame.textChanged();
+        notifyTextChanged();
         doHighLighting();
     }
 

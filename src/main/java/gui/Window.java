@@ -1,15 +1,22 @@
 package gui;
 
-import enviroment.Enviroment;
+import engine.events.ExecutionEvent;
+import engine.events.MachineEvent;
+import engine.events.MachineEventListener;
+import engine.events.MemoryAccessErrorEvent;
+import engine.ProgramRunner;
+import engine.Machine;
+import engine.MachineContext;
+import engine.program.Program;
+import engine.util.MemoryChangeTracker;
+import engine.state.MyByte;
 import org.drjekyll.fontchooser.FontDialog;
-import parser.Parser;
-import scanner.Scanner;
-import simulator.Command;
-import simulator.Halt;
-import simulator.RunProgram;
+import engine.parser.Parser;
+import engine.scanner.Scanner;
+import engine.commands.Command;
+import engine.commands.Halt;
 
 import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.DropTarget;
@@ -17,8 +24,6 @@ import java.awt.dnd.DropTargetAdapter;
 import java.awt.dnd.DropTargetDropEvent;
 import java.awt.event.*;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Locale;
 
@@ -108,11 +113,6 @@ public class Window extends javax.swing.JFrame {
     private JMenuBar jMenuBar1;
 
     /**
-     * Quelltextscanner
-     */
-    private Scanner scanner;
-
-    /**
      * Anzeigebereich für den Speicher
      */
     private MemoryPanel memory;
@@ -139,24 +139,39 @@ public class Window extends javax.swing.JFrame {
 
 
     /**
-     * Nächster befehl
+     * Memory change tracker for highlighting.
      */
-    private Command nex = null;
+    private MemoryChangeTracker memoryTracker;
 
     /**
-     * Übersetzungsstatus
+     * Program execution controller.
      */
-    private boolean compiled = false;
+    private ProgramController programController;
 
     /**
-     * The run.
+     * Machine context for state access and modification.
      */
-    private RunProgram run;
+    private MachineContext machine;
 
     /**
-     * The file.
+     * Display settings for number formats and syntax highlighting.
      */
-    private File file;
+    private final DisplaySettings displaySettings = new DisplaySettings();
+
+    /**
+     * Label window for showing program labels.
+     */
+    private final LabelWindow labelWindow = new LabelWindow();
+
+    /**
+     * Memory view for visualization.
+     */
+    private MemoryView memoryView;
+
+    /**
+     * File manager for handling file operations.
+     */
+    private FileManager fileManager;
 
     /**
      * The input_panel.
@@ -223,33 +238,25 @@ public class Window extends javax.swing.JFrame {
      */
     public JSplitPane main_panel;
 
-    /**
-     * Letzer Text der Quelltexteingabe
-     */
-    private String oldtext = "";
 
     /**
-     * Dateiauswahl.
+     * Konstruktor für das Fenster mit injizierter Machine.
+     *
+     * @param machine the machine context to use
      */
-    private final JFileChooser fc = new JFileChooser();
-
-    /**
-     * Konstruktor für das Fenster
-     */
-    public Window() {
+    public Window(MachineContext machine) {
         super();
-        addWindowListener(new WindowAdapter() {
+        this.machine = machine;
+        initGUI();
 
+        addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                if (saveOld()) {
+                if (fileManager.promptSaveIfNeeded(text.getText())) {
                     System.exit(0);
                 }
-
             }
-
         });
-        initGUI();
 
         addComponentListener(new ComponentAdapter() {
             @Override
@@ -257,16 +264,15 @@ public class Window extends javax.swing.JFrame {
                 Window.this.updateUI();
             }
         });
-
     }
 
     /**
-     * Gibt das akutell ablaufende Programm zurueck
+     * Gets the current program runner.
      *
-     * @return akutell ablaufende Programm
+     * @return program runner
      */
-    public RunProgram getRun() {
-        return run;
+    public ProgramRunner getRunner() {
+        return programController != null ? programController.getRunner() : null;
     }
 
     /**
@@ -284,13 +290,12 @@ public class Window extends javax.swing.JFrame {
     private void initGUI() {
         Locale.setDefault(Locale.GERMAN);
 
-        // Diese Methode sollte unbedingt in de nächsten Version auf mehrere
-        // Klassen aufgeteilt werden.
-        fc.setFileFilter(new FileNameExtensionFilter("MI-File", "mi"));
+        // Initialize file manager
+        fileManager = new FileManager(this);
 
         getContentPane().setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
         codePanel = new JPanel();
-        buttonPanel = new ButtonPanel(compiled);
+        buttonPanel = new ButtonPanel(false);
         buttonPanel.setLayout(new FlowLayout(10));
         ober_panel = new JPanel();
         ober_panel.setLayout(new BoxLayout(ober_panel, BoxLayout.X_AXIS));
@@ -304,8 +309,10 @@ public class Window extends javax.swing.JFrame {
 
         codePanel.setLayout(new BoxLayout(codePanel, BoxLayout.Y_AXIS));
         setTitle(CONSTANTS.TITLE + " - unbenannt.mi");
-        Enviroment.setJFrame(this);
-        Enviroment.init();
+        memoryTracker = new MemoryChangeTracker(machine);
+        programController = new ProgramController(machine, memoryTracker, createExecutionCallback());
+        machine.reset();
+        memoryView = new MemoryView(machine, memoryTracker);
 
         memoryPanel = new JPanel();
         memoryPanel.setLayout(new BoxLayout(memoryPanel, BoxLayout.Y_AXIS));
@@ -314,68 +321,46 @@ public class Window extends javax.swing.JFrame {
         {
             input_panel = new JPanel();
             input_panel.setLayout(new BorderLayout());
-            numberedPane = new NumberedPane();
+            numberedPane = new NumberedPane(machine, displaySettings, this::textChanged);
             input_panel.add(numberedPane, BorderLayout.WEST);
             input_panel.add(numberedPane.scrollPane, BorderLayout.CENTER);
             codePanel.add(input_panel);
             text = numberedPane.getTextPane();
-            Enviroment.setText(text);
 
-            DropTarget target = new DropTarget(text, new DropTargetAdapter() {
+            new DropTarget(text, new DropTargetAdapter() {
 
                 public void drop(DropTargetDropEvent dtde) {
-                    if (dtde.isDataFlavorSupported(
-                            DataFlavor.javaFileListFlavor)) {
+                    if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                         dtde.acceptDrop(dtde.getDropAction());
                         try {
+                            @SuppressWarnings("unchecked")
                             List<File> list = (List<File>) dtde.getTransferable()
-                                    .getTransferData(
-                                            DataFlavor.javaFileListFlavor);
-                            for (File file1 : list) {
-                                if (saveOld()) {
-                                    file = file1;
-                                    int ch;
-                                    StringBuffer strContent = new StringBuffer(
-                                            "");
-
-                                    FileInputStream in = new FileInputStream(
-                                            file);
-                                    while ((ch = in.read())
-                                            != -1) {
-                                        strContent.append(
-                                                (char) ch);
+                                    .getTransferData(DataFlavor.javaFileListFlavor);
+                            for (File droppedFile : list) {
+                                if (fileManager.promptSaveIfNeeded(text.getText())) {
+                                    FileManager.FileResult result = fileManager.openFile(droppedFile);
+                                    if (result.isSuccess()) {
+                                        text.setText(result.getContent());
+                                        text.setCaretPosition(0);
+                                        disableExecutionButtons();
+                                        updateUI();
+                                        machine.reset();
+                                        reset_Title();
+                                    } else if (result.getErrorMessage() != null) {
+                                        error.setText(result.getErrorMessage());
                                     }
-
-                                    in.close();
-                                    text.setText(
-                                            strContent.toString());
-                                    text.setCaretPosition(0);
-                                    oldtext = text.getText();
-                                    buttonPanel.getBtnRestart().setEnabled(
-                                            false);
-                                    buttonPanel.getBtnRun().setEnabled(false);
-                                    buttonPanel.getBtnStep().setEnabled(false);
-                                    buttonPanel.getBtnStop().setEnabled(false);
-                                    updateUI();
-                                    Enviroment.init();
-                                    reset_Title();
-
                                 }
-
                             }
-
-                        } catch (Exception E) {
+                        } catch (Exception e) {
                             error.setText(CONSTANTS.ERROR_OPENFILE);
-
                         }
-
                     }
                 }
             });
 
         }
         {
-            registerPanel = new RegistersPanel();
+            registerPanel = new RegistersPanel(machine, displaySettings, this::updateUI);
             ober_panel.add(registerPanel);
             ober_panel.add(codePanel);
             ober_panel.add(memoryPanel);
@@ -393,124 +378,12 @@ public class Window extends javax.swing.JFrame {
             main_panel.setOneTouchExpandable(true);
             main_panel.setResizeWeight(0.75);
         }
-        buttonPanel.getBtnAssemble().addActionListener(e2 -> {
-            numberedPane.reset();
-            Enviroment.init();
-            scanner = new Scanner(false);
-            scanner.init(text.getText());
-
-            Parser p = new Parser(scanner);
-            p.start();
-
-            if (p.eval()) {
-
-                if (p.getProgramm().getCommands().size()
-                        > 0) {
-                    Enviroment.setProgram(
-                            p.getProgramm());
-                    Enviroment.MEMORY.setContent(0,
-                            p.getProgramm()
-                                    .getOpCode());
-
-                    nex = Enviroment.readNextCommand();
-                    text.highlightNextCommand();
-
-                    run = new RunProgram(buttonPanel.getBtnRun(),
-                            buttonPanel.getBtnStop(),
-                            buttonPanel.getBtnStep(),
-                            buttonPanel.getBtnRestart());
-                    error.setText(
-                            CONSTANTS.ASSEMBLE_SUCCESSFUL);
-                    compiled = true;
-                } else {
-                    error.setText(
-                            CONSTANTS.ASSEMBLE_UNSUCCESSFUL);
-                    compiled = false;
-                }
-            } else {
-                error.setText(
-                        p.getErrorMeassge().toString());
-                compiled = false;
-            }
-
-            updateUI();
-            if (p.getErrorMeassge().getErrorMessage().length()
-                    > 0) {
-
-                error.setText(p.getErrorMeassge()
-                        .getErrorMessage());
-                compiled = false;
-            }
-            Enviroment.setCompiled(compiled);
-            text.setCompiled(compiled);
-            buttonPanel.getBtnRun().setEnabled(compiled);
-            buttonPanel.getBtnStep().setEnabled(compiled);
-            buttonPanel.getBtnRestart().setEnabled(compiled);
-
-        });
-        buttonPanel.getBtnRun().addActionListener(e1 -> {
-            buttonPanel.getBtnRun().setEnabled(false);
-            buttonPanel.getBtnStop().setEnabled(true);
-            buttonPanel.getBtnStep().setEnabled(false);
-            Enviroment.REGISTERS.reset();
-            Enviroment.MEMORY.resetChanges();
-            run = new RunProgram(buttonPanel.getBtnRun(), buttonPanel.getBtnStop(), buttonPanel.getBtnStep(),
-                    buttonPanel.getBtnRestart());
-            run.start();
-
-            memory = Enviroment.MEMORY.getMemoryTable();
-        });
-        buttonPanel.getBtnStep().addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e1) {
-                Enviroment.REGISTERS.reset();
-                Enviroment.MEMORY.resetChanges();
-                nex = Enviroment.getNextCommand();
-
-                if (nex != null && !(nex instanceof Halt)) {
-
-                    nex.run();
-
-                } else {
-
-                    buttonPanel.getBtnRun().setEnabled(false);
-                    buttonPanel.getBtnStep().setEnabled(false);
-                    error.setText("Programmende");
-                }
-                Enviroment.readNextCommand();
-                text.highlightNextCommand();
-
-                updateUI();
-
-            }
-        });
-        buttonPanel.getBtnStop().addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent arg0) {
-                run.stopProgram();
-                text.highlightNextCommand();
-                text.highlightNextCommand();
-
-                buttonPanel.getBtnStop().setEnabled(false);
-            }
-        });
-        buttonPanel.getBtnRestart().addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e1) {
-                run.stopProgram();
-                Enviroment.init();
-                Enviroment.MEMORY.setContent(0,
-                        Enviroment.getProgram()
-                                .getOpCode());
-                nex = Enviroment.readNextCommand();
-                text.highlightNextCommand();
-                error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
-                buttonPanel.getBtnRun().setEnabled(true);
-                buttonPanel.getBtnStep().setEnabled(true);
-                buttonPanel.getBtnStop().setEnabled(false);
-                updateUI();
-            }
-        });
+        // Wire up button panel handlers
+        buttonPanel.getBtnAssemble().addActionListener(e -> handleAssemble());
+        buttonPanel.getBtnRun().addActionListener(e -> handleRun());
+        buttonPanel.getBtnStep().addActionListener(e -> handleStep());
+        buttonPanel.getBtnStop().addActionListener(e -> handleStop());
+        buttonPanel.getBtnRestart().addActionListener(e -> handleRestart());
 
         flag_panel = new JPanel();
         codePanel.add(flag_panel);
@@ -519,28 +392,19 @@ public class Window extends javax.swing.JFrame {
         setJMenuBar(jMenuBar1);
         {
             file_menu = new JMenu();
+            file_menu.setName("file_menu");
             jMenuBar1.add(file_menu);
             file_menu.setText("Datei");
             {
                 newFile = new JMenuItem();
-                newFile.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        if (!text.getText().equals(oldtext)) {
-                            saveOld();
-                        }
-                        file = null;
-                        fc.setSelectedFile(new File(""));
+                newFile.addActionListener(e -> {
+                    if (fileManager.promptSaveIfNeeded(text.getText())) {
+                        fileManager.newFile();
                         reset_Title();
                         text.setText("");
-                        oldtext = "";
-                        Enviroment.init();
-                        buttonPanel.getBtnRestart().setEnabled(false);
-                        buttonPanel.getBtnRun().setEnabled(false);
-                        buttonPanel.getBtnStep().setEnabled(false);
-                        buttonPanel.getBtnStop().setEnabled(false);
+                        machine.reset();
+                        disableExecutionButtons();
                         updateUI();
-
                     }
                 });
 
@@ -549,49 +413,18 @@ public class Window extends javax.swing.JFrame {
             }
             {
                 openFileMenuItem = new JMenuItem();
-                openFileMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-
-                        if (saveOld()) {
-                            int returnVal = fc.showOpenDialog(
-                                    Window.this);
-                            if (returnVal
-                                    == JFileChooser.APPROVE_OPTION) {
-                                file = fc.getSelectedFile();
-                                int ch;
-                                StringBuffer strContent = new StringBuffer(
-                                        "");
-                                try {
-                                    FileInputStream in = new FileInputStream(
-                                            file);
-                                    while ((ch = in.read())
-                                            != -1) {
-                                        strContent.append(
-                                                (char) ch);
-                                    }
-
-                                    in.close();
-                                    text.setText(
-                                            strContent.toString());
-                                    text.setCaretPosition(0);
-                                    oldtext = text.getText();
-                                    buttonPanel.getBtnRestart().setEnabled(
-                                            false);
-                                    buttonPanel.getBtnRun().setEnabled(false);
-                                    buttonPanel.getBtnStep().setEnabled(false);
-                                    buttonPanel.getBtnStop().setEnabled(false);
-                                    updateUI();
-                                    Enviroment.init();
-                                    reset_Title();
-
-                                } catch (Exception E) {
-                                    error.setText(
-                                            CONSTANTS.ERROR_OPENFILE);
-
-                                }
-                            }
-
+                openFileMenuItem.addActionListener(e -> {
+                    if (fileManager.promptSaveIfNeeded(text.getText())) {
+                        FileManager.FileResult result = fileManager.openFile();
+                        if (result.isSuccess()) {
+                            text.setText(result.getContent());
+                            text.setCaretPosition(0);
+                            disableExecutionButtons();
+                            updateUI();
+                            machine.reset();
+                            reset_Title();
+                        } else if (result.getErrorMessage() != null) {
+                            error.setText(result.getErrorMessage());
                         }
                     }
                 });
@@ -605,38 +438,13 @@ public class Window extends javax.swing.JFrame {
 
             {
                 saveMenuItem = new JMenuItem();
-                saveMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-
-                        if (file == null) {
-                            int returnVal = fc.showSaveDialog(
-                                    Window.this);
-                            if (returnVal
-                                    == JFileChooser.APPROVE_OPTION) {
-                                file = fc.getSelectedFile();
-                            }
-                        }
-                        if (file != null) {
-                            try {
-                                FileOutputStream in = new FileOutputStream(
-                                        file);
-
-                                in.write(text.getText().getBytes());
-                                oldtext = text.getText();
-                                in.close();
-                                reset_Title();
-
-                            } catch (Exception E) {
-                                error.setText(
-                                        CONSTANTS.ERROR_SAVEFILE);
-
-                            }
-
-                        }
-
+                saveMenuItem.addActionListener(e -> {
+                    FileManager.FileResult result = fileManager.save(text.getText());
+                    if (result.isSuccess()) {
+                        reset_Title();
+                    } else if (result.getErrorMessage() != null) {
+                        error.setText(result.getErrorMessage());
                     }
-
                 });
                 file_menu.add(saveMenuItem);
                 saveMenuItem.setText("Speichern");
@@ -646,28 +454,12 @@ public class Window extends javax.swing.JFrame {
             }
             {
                 saveAsMenuItem = new JMenuItem();
-                saveAsMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-
-                        int returnVal = fc.showSaveDialog(Window.this);
-                        if (returnVal == JFileChooser.APPROVE_OPTION) {
-                            file = fc.getSelectedFile();
-                            try {
-                                FileOutputStream in = new FileOutputStream(
-                                        file);
-
-                                in.write(text.getText().getBytes());
-                                oldtext = text.getText();
-                                in.close();
-                                reset_Title();
-                            } catch (Exception E) {
-                                error.setText(
-                                        CONSTANTS.ERROR_SAVEFILE);
-                            }
-
-                        }
-
+                saveAsMenuItem.addActionListener(e -> {
+                    FileManager.FileResult result = fileManager.saveAs(text.getText());
+                    if (result.isSuccess()) {
+                        reset_Title();
+                    } else if (result.getErrorMessage() != null) {
+                        error.setText(result.getErrorMessage());
                     }
                 });
                 file_menu.add(saveAsMenuItem);
@@ -679,12 +471,9 @@ public class Window extends javax.swing.JFrame {
             }
             {
                 exitMenuItem = new JMenuItem();
-                exitMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        if (saveOld()) {
-                            System.exit(0);
-                        }
+                exitMenuItem.addActionListener(e -> {
+                    if (fileManager.promptSaveIfNeeded(text.getText())) {
+                        System.exit(0);
                     }
                 });
                 file_menu.add(exitMenuItem);
@@ -698,26 +487,19 @@ public class Window extends javax.swing.JFrame {
             jMenuBar1.add(edit_menu);
             edit_menu.setText("Bearbeiten");
             {
-
                 undoMenuItem = new JMenuItem();
-                undoMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        // text.getUndoManager().end();
-
-                        if (text.getUndoManager().canUndo()) {
-                            text.getUndoManager().undo();
-                            Window.this.textChanged();
-                        }
-                        text.requestFocus();
+                undoMenuItem.addActionListener(e -> {
+                    if (text.getUndoManager().canUndo()) {
+                        text.getUndoManager().undo();
+                        textChanged();
                     }
+                    text.requestFocus();
                 });
                 edit_menu.add(undoMenuItem);
                 undoMenuItem.setText("Rückgängig");
                 undoMenuItem.setAccelerator(
                         KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z,
                                 java.awt.Event.CTRL_MASK));
-
             }
         }
 
@@ -726,48 +508,33 @@ public class Window extends javax.swing.JFrame {
             jMenuBar1.add(settings_menu);
             settings_menu.setText("Einstellungen");
             {
-
                 shlMenuItem = new JCheckBoxMenuItem();
                 shlMenuItem.setSelected(true);
-                shlMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        Enviroment.shl = ((JCheckBoxMenuItem) e.getSource()).getState();
-                        Enviroment.text.doHighLighting();
-                    }
+                shlMenuItem.addActionListener(e -> {
+                    displaySettings.setSyntaxHighlighting(shlMenuItem.getState());
+                    text.doHighLighting();
                 });
                 settings_menu.add(shlMenuItem);
                 shlMenuItem.setText("Syntaxhighlighting");
 
                 label_windowMenuItem = new JCheckBoxMenuItem();
                 label_windowMenuItem.setSelected(false);
-
-                label_windowMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        Enviroment.label_Window = ((JCheckBoxMenuItem) e.getSource()).getState();
-                        if (Enviroment.compiled) {
-                            Enviroment.getLabelWindow().setVisible(
-                                    Enviroment.label_Window);
-                        }
+                label_windowMenuItem.addActionListener(e -> {
+                    if (machine.isCompiled()) {
+                        labelWindow.setVisible(label_windowMenuItem.getState());
                     }
                 });
                 settings_menu.add(label_windowMenuItem);
                 label_windowMenuItem.setText("Fenster mit Labeladressen");
 
                 JCheckBoxMenuItem showLeadingZerosItem = new JCheckBoxMenuItem();
-                showLeadingZerosItem.setSelected(false);
-
-                showLeadingZerosItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        Enviroment.showLeadingZeros = showLeadingZerosItem.getState();
-                        Enviroment.frame.updateUI();
-                    }
+                showLeadingZerosItem.setSelected(displaySettings.isShowLeadingZeros());
+                showLeadingZerosItem.addActionListener(e -> {
+                    displaySettings.setShowLeadingZeros(showLeadingZerosItem.getState());
+                    updateUI();
                 });
                 settings_menu.add(showLeadingZerosItem);
                 showLeadingZerosItem.setText("Führende Nullen anzeigen");
-                showLeadingZerosItem.setState(Enviroment.showLeadingZeros);
 
                 fontMenuItem = new JMenuItem("Schriftart ändern");
                 fontMenuItem.addActionListener(e -> {
@@ -793,20 +560,13 @@ public class Window extends javax.swing.JFrame {
             jMenuBar1.add(jMenu5);
             jMenu5.setText("Über");
             {
-
-                fontMenuItem = new JMenuItem();
-                fontMenuItem.addActionListener(new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-
-                        JOptionPane.showMessageDialog(Window.this,
-                                CONSTANTS.INFO_TEXT,
-                                CONSTANTS.INFO_TITLE,
-                                JOptionPane.INFORMATION_MESSAGE);
-                    }
-                });
-                jMenu5.add(fontMenuItem);
-                fontMenuItem.setText("Über");
+                JMenuItem aboutMenuItem = new JMenuItem("Über");
+                aboutMenuItem.addActionListener(e ->
+                    JOptionPane.showMessageDialog(this,
+                            CONSTANTS.INFO_TEXT,
+                            CONSTANTS.INFO_TITLE,
+                            JOptionPane.INFORMATION_MESSAGE));
+                jMenu5.add(aboutMenuItem);
             }
         }
         getContentPane().add(main_panel);
@@ -818,61 +578,96 @@ public class Window extends javax.swing.JFrame {
      * Setzt den Titel des JFrames neu
      */
     public void reset_Title() {
-        setTitle(
-                CONSTANTS.TITLE + " - " + (file != null ? file.getName() : "unbenannt.mi"));
+        setTitle(CONSTANTS.TITLE + " - " + fileManager.getCurrentFileName());
     }
 
     /**
-     * Zeigt den Speicherdialog, wenn sich der Inhalt geändert hat
-     *
-     * @return true, if successful
+     * Disables all execution-related buttons.
      */
-    private boolean saveOld() {
-        if (text.getText().equals(oldtext)) {
-            return true; // keine Änderungen
-        }
-        int option = JOptionPane.showConfirmDialog(Window.this,
-                "Möchten Sie die Änderungen in " + (
-                        file != null ?
-                                file.getName() :
-                                "unbenannt.mi")
-                        + " speichern?",
-                "Änderungen speichern?",
-                JOptionPane.YES_NO_CANCEL_OPTION);
-        switch (option) {
-            case JOptionPane.YES_OPTION:
-                if (file == null) {
-                    int returnVal = fc.showSaveDialog(Window.this);
-                    if (returnVal == JFileChooser.APPROVE_OPTION) {
-                        file = fc.getSelectedFile();
-                    }
-                }
-                if (file != null) {
-                    try {
-                        FileOutputStream in = new FileOutputStream(file);
+    private void disableExecutionButtons() {
+        buttonPanel.getBtnRestart().setEnabled(false);
+        buttonPanel.getBtnRun().setEnabled(false);
+        buttonPanel.getBtnStep().setEnabled(false);
+        buttonPanel.getBtnStop().setEnabled(false);
+    }
 
-                        in.write(text.getText().getBytes());
-                        oldtext = text.getText();
-                        in.close();
+    // ========================================================================
+    // Button Panel Handlers
+    // ========================================================================
 
-                    } catch (Exception E) {
-                        error.setText(CONSTANTS.ERROR_SAVEFILE);
-                    }
-                } else {
-                    return false;
-                }
-                return true;
+    /**
+     * Handles the Assemble button: parses and compiles the source code.
+     */
+    private void handleAssemble() {
+        numberedPane.reset();
+        ProgramController.AssembleResult result = programController.assemble(text.getText());
 
-            case JOptionPane.NO_OPTION:
-                return true;
+        if (result.isSuccess()) {
+            text.highlightNextCommand(programController.getRunner(), machine);
+            error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
 
-            case JOptionPane.CANCEL_OPTION:
-                return false;
-
-            default:
-                return false;
+            labelWindow.setContent(result.getLabels());
+            labelWindow.setVisible(label_windowMenuItem.isSelected());
+            labelWindow.pack();
+        } else {
+            error.setText(result.getErrorMessage());
         }
 
+        updateUI();
+        Program program = result.getProgram();
+        text.setCompiled(program.isCompiled());
+        buttonPanel.getBtnRun().setEnabled(program.isCompiled());
+        buttonPanel.getBtnStep().setEnabled(program.isCompiled());
+        buttonPanel.getBtnRestart().setEnabled(program.isCompiled());
+    }
+
+    /**
+     * Handles the Run button: starts continuous program execution.
+     */
+    private void handleRun() {
+        registerPanel.resetChangedFlags();
+        programController.run();
+        memory = memoryView.getMemoryTable();
+    }
+
+    /**
+     * Handles the Step button: executes one instruction.
+     */
+    private void handleStep() {
+        registerPanel.resetChangedFlags();
+        boolean hasMore = programController.step();
+
+        if (!hasMore) {
+            buttonPanel.getBtnRun().setEnabled(false);
+            buttonPanel.getBtnStep().setEnabled(false);
+            error.setText("Programmende");
+        }
+
+        text.highlightNextCommand(programController.getRunner(), machine);
+        updateUI();
+    }
+
+    /**
+     * Handles the Stop button: halts program execution.
+     */
+    private void handleStop() {
+        programController.stop();
+        text.highlightNextCommand(programController.getRunner(), machine);
+
+        buttonPanel.getBtnStop().setEnabled(false);
+    }
+
+    /**
+     * Handles the Restart button: resets machine state and reloads program.
+     */
+    private void handleRestart() {
+        programController.restart();
+        text.highlightNextCommand(programController.getRunner(), machine);
+        error.setText(CONSTANTS.ASSEMBLE_SUCCESSFUL);
+        buttonPanel.getBtnRun().setEnabled(true);
+        buttonPanel.getBtnStep().setEnabled(true);
+        buttonPanel.getBtnStop().setEnabled(false);
+        updateUI();
     }
 
     /**
@@ -888,21 +683,17 @@ public class Window extends javax.swing.JFrame {
      * Wird ausgefuehrt, wenn eine Veränderung des Quelltextes festgestellt wird
      */
     public void textChanged() {
-        if (run != null) {
-            run.stopProgram();
-            run = null;
-        }
+        programController.clearRunner();
 
         numberedPane.reset();
-        Enviroment.setCompiled(false);
-        Enviroment.getLabelWindow().setVisible(false);
+        labelWindow.setVisible(false);
         error.setText("");
         text.setCompiled(false);
         buttonPanel.getBtnRun().setEnabled(false);
         buttonPanel.getBtnStep().setEnabled(false);
         buttonPanel.getBtnStop().setEnabled(false);
         buttonPanel.getBtnRestart().setEnabled(false);
-        Enviroment.init();
+        machine.reset();
         updateUI();
     }
 
@@ -910,8 +701,9 @@ public class Window extends javax.swing.JFrame {
      * Aktualisiert die grafische Oberflaeche
      */
     public void updateUI() {
-        if (Enviroment.getNextCommand() != null
-                && Enviroment.getNextCommand() instanceof Halt) {
+        ProgramRunner runner = programController.getRunner();
+        Command nextCommand = runner != null ? runner.getNextCommand() : null;
+        if (nextCommand != null && nextCommand instanceof Halt) {
             error.setText(CONSTANTS.PROGRAM_END);
             buttonPanel.getBtnRun().setEnabled(false);
             buttonPanel.getBtnStep().setEnabled(false);
@@ -921,12 +713,12 @@ public class Window extends javax.swing.JFrame {
 
         int val = (memory == null) ? 0 : memory.getVerticalScrollBar().getValue();
         int val2 = (stack == null) ? 0 : stack.getVerticalScrollBar().getValue();
-        flagsPanel = new FlagsPanel(Enviroment.flags);
+        flagsPanel = new FlagsPanel(machine.getFlags());
 
         JPanel instr_panel = new JPanel();
-        if (compiled) {
-            JLabel instr = new JLabel(" " + (Enviroment.getNextCommand() != null ?
-                    Enviroment.getNextCommand().toString() :
+        if (machine.isCompiled()) {
+            JLabel instr = new JLabel(" " + (nextCommand != null ?
+                    nextCommand.toString() :
                     "no Instr"));
             instr.setFont(CONSTANTS.FONT);
             instr.setForeground(CONSTANTS.DARK_GREY);
@@ -941,14 +733,14 @@ public class Window extends javax.swing.JFrame {
         flag_panel.add(flagsPanel);
         flag_panel.add(instr_panel);
 
-        text.highlightNextCommand();
+        text.highlightNextCommand(runner, machine);
 
         memoryPanel.removeAll();
-        memory = Enviroment.MEMORY.getMemoryTable();
+        memory = memoryView.getMemoryTable();
         memory.setSize(CONSTANTS.MEMORY_WIDTH, CONSTANTS.MEMORY_HEIGHT);
         memory.getVerticalScrollBar().setValue(val);
         memory.getVerticalScrollBar().setValue(val);
-        stack = Enviroment.MEMORY.getStackTable();
+        stack = memoryView.getStackTable();
         stack.setSize(CONSTANTS.STACK_WIDTH, CONSTANTS.STACK_HEIGHT);
         stack.getVerticalScrollBar().setValue(val2);
         stack.getVerticalScrollBar().setValue(val2);
@@ -970,4 +762,88 @@ public class Window extends javax.swing.JFrame {
         setSize(Math.min(CONSTANTS.WINDOW_WIDTH, x), Math.min(CONSTANTS.WINDOW_HEIGHT, y));
     }
 
+    /**
+     * Creates the execution callback for ProgramController.
+     */
+    private ProgramController.ExecutionCallback createExecutionCallback() {
+        return new ProgramController.ExecutionCallback() {
+            @Override
+            public void onAssembleSuccess(Program program, java.util.ArrayList<engine.program.Label> labels) {
+                // Handled in handleAssemble
+            }
+
+            @Override
+            public void onAssembleFailure(String errorMessage) {
+                // Handled in handleAssemble
+            }
+
+            @Override
+            public void onExecutionStarted() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(false);
+                    buttonPanel.getBtnStep().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(false);
+                });
+            }
+
+            @Override
+            public void onExecutionStopped() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(true);
+                    buttonPanel.getBtnStep().setEnabled(true);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
+
+            @Override
+            public void onBreakpointHit() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(true);
+                    buttonPanel.getBtnStep().setEnabled(true);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
+
+            @Override
+            public void onProgramEnded() {
+                SwingUtilities.invokeLater(() -> {
+                    buttonPanel.getBtnStop().setEnabled(false);
+                    buttonPanel.getBtnRestart().setEnabled(true);
+                    buttonPanel.getBtnRun().setEnabled(false);
+                    buttonPanel.getBtnStep().setEnabled(false);
+                    text.highlightNextCommand(programController.getRunner(), machine);
+                    updateUI();
+                });
+            }
+
+            @Override
+            public void onStepCompleted(boolean hasMore) {
+                // Handled in handleStep
+            }
+
+            @Override
+            public void onMemoryAccessError(int address, String type) {
+                SwingUtilities.invokeLater(() -> {
+                    String message = String.format("Memory access error at address 0x%X: %s", address, type);
+                    JOptionPane.showMessageDialog(Window.this, message, "Memory Error", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        };
+    }
+
+    /**
+     * Gets the memory change tracker.
+     *
+     * @return the memory change tracker, or null if not initialized
+     */
+    public MemoryChangeTracker getMemoryTracker() {
+        return memoryTracker;
+    }
 }

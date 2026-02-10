@@ -3,11 +3,9 @@
  */
 package gui;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
+import engine.util.MemoryChangeTracker;
+import engine.state.MyByte;
 
-import java.util.Map;
-import java.util.HashMap;
 import java.util.ArrayList;
 
 /**
@@ -23,15 +21,20 @@ public class MemoryTableEntry {
     /** The adr. */
     String adr;
 
+    /** Memory change tracker for highlighting. */
+    private final MemoryChangeTracker tracker;
+
     /**
      * Konstruktor für einen Speicherzelleneintrag
      *
      * @param data Daten der Speicherzelle
      * @param adr  the adr
+     * @param tracker the memory change tracker (may be null)
      */
-    public MemoryTableEntry(ArrayList<MyByte> data, String adr) {
+    public MemoryTableEntry(ArrayList<MyByte> data, String adr, MemoryChangeTracker tracker) {
         this.data = data;
         this.adr = adr;
+        this.tracker = tracker;
     }
 
     /**
@@ -55,10 +58,10 @@ public class MemoryTableEntry {
         boolean html = false;
         StringBuffer ret2 = new StringBuffer(adr + " ");
         int address = Integer.parseInt(this.adr, 16);
-        Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
 
         for (MyByte in : data) {
-            if (changes.containsKey(address)) {
+            boolean changed = tracker != null && tracker.isChanged(address);
+            if (changed) {
                 ret2.append(
                         "<font color=\"#ff0000\">" + in.toString() + " </font>");
                 html = true;

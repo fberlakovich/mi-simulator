@@ -1,25 +1,55 @@
 package gui;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
-import enviroment.NumberConversion;
-import enviroment.Register;
+import engine.events.MachineEvent;
+import engine.events.MachineEventListener;
+import engine.events.RegisterChangeEvent;
+import engine.MachineContext;
+import engine.Machine;
+import engine.state.MyByte;
+import engine.util.NumberConversion;
+import engine.state.Register;
+import engine.util.RegisterChangeTracker;
 
 import javax.swing.*;
 import java.awt.*;
 
-class RegistersPanel extends JPanel {
+class RegistersPanel extends JPanel implements MachineEventListener {
     private final JTextField[] registerTextFields = new JTextField[CONSTANTS.NUMBER_OF_REGISTER];
+    private final RegisterChangeTracker changeTracker;
+    private final MachineContext machine;
+    private final DisplaySettings displaySettings;
+    private final Runnable uiUpdateCallback;
 
-    public RegistersPanel() {
+    public RegistersPanel(MachineContext machine, DisplaySettings displaySettings, Runnable uiUpdateCallback) {
+        this.machine = machine;
+        this.displaySettings = displaySettings;
+        this.uiUpdateCallback = uiUpdateCallback;
+        this.changeTracker = new RegisterChangeTracker(machine);
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         add(createScrollPanel());
+        machine.getEventBus().subscribe(RegisterChangeEvent.class, this);
+    }
+
+    @Override
+    public void onEvent(MachineEvent event) {
+        if (event instanceof RegisterChangeEvent) {
+            RegisterChangeEvent rce = (RegisterChangeEvent) event;
+            SwingUtilities.invokeLater(() -> updateRegister(rce.getRegisterIndex(), displaySettings.getRegisterView()));
+        }
+    }
+
+    /**
+     * Resets the change tracking for highlighting.
+     * Call this after each instruction or when refreshing the display.
+     */
+    public void resetChangedFlags() {
+        changeTracker.reset();
     }
 
     private void updateRegister(int regNum, RegisterViewType regview) {
-        Register register = Enviroment.REGISTERS.getRegister(regNum);
+        Register register = machine.getRegisters().getRegister(regNum);
         MyByte[] content = register.getContent(4);
-        boolean changed = register.isChanged();
+        boolean changed = changeTracker.isChanged(regNum);
 
         String text = "";
         switch (regview) {
@@ -28,13 +58,13 @@ class RegistersPanel extends JPanel {
                 break;
             case BINARY:
                 text = NumberConversion.myBytetoBin(content);
-                if (Enviroment.showLeadingZeros) {
+                if (displaySettings.isShowLeadingZeros()) {
                     text = String.format("%1$" + CONSTANTS.WORD_SIZE * 8 + "s", text).replace(" ", "0");
                 }
                 break;
             case HEX:
                 text = NumberConversion.myBytetoHex(content);
-                if (Enviroment.showLeadingZeros) {
+                if (displaySettings.isShowLeadingZeros()) {
                     text = String.format("%1$" + CONSTANTS.WORD_SIZE * 2 + "s", text).replace(" ", "0");
                 }
                 break;
@@ -58,7 +88,7 @@ class RegistersPanel extends JPanel {
 
     public void updateRegisterValues() {
         for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            updateRegister(i, Enviroment.REGVIEW);
+            updateRegister(i, displaySettings.getRegisterView());
         }
     }
 
@@ -70,13 +100,15 @@ class RegistersPanel extends JPanel {
         chooser.addItem(RegisterViewType.BINARY);
         chooser.addItem(RegisterViewType.HEX);
         chooser.addItem(RegisterViewType.FLOAT);
-        chooser.setSelectedItem(Enviroment.REGVIEW);
+        chooser.setSelectedItem(displaySettings.getRegisterView());
         chooser.addActionListener(evt -> {
             @SuppressWarnings("unchecked") JComboBox<RegisterViewType> cb = (JComboBox<RegisterViewType>) evt.getSource();
 
             RegisterViewType selectedViewType = cb.getItemAt(cb.getSelectedIndex());
-            Enviroment.setRegView(selectedViewType);
-            Enviroment.frame.updateUI();
+            displaySettings.setRegisterView(selectedViewType);
+            if (uiUpdateCallback != null) {
+                uiUpdateCallback.run();
+            }
         });
 
         chooserPanel.add(chooser);

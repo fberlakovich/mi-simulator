@@ -1,0 +1,8 @@
+          SEG
+          MOVE W I 0, R0
+          MOVE W I 10, R1
+loop:     ADD W I 1, R0
+          CMP W R0, R1
+          JLT loop
+          HALT
+          END

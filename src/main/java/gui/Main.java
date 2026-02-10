@@ -1,6 +1,7 @@
 package gui;
 
-import enviroment.Enviroment;
+import engine.Machine;
+import engine.MachineContext;
 
 import javax.swing.*;
 
@@ -15,16 +16,14 @@ public class Main {
      * @param args keine
      */
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                Window inst = new Window();
-                inst.setVisible(true);
-                inst.resetSize();
-                Enviroment.setJFrame(inst);
-                inst.setLocationRelativeTo(null);
+        // Create machine instance and inject into Window
+        MachineContext machine = Machine.getInstance();
 
-            }
+        SwingUtilities.invokeLater(() -> {
+            Window inst = new Window(machine);
+            inst.setVisible(true);
+            inst.resetSize();
+            inst.setLocationRelativeTo(null);
         });
     }
 

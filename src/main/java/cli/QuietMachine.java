@@ -1,40 +1,52 @@
 package cli;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
-import enviroment.Register;
-import gui.CONSTANTS;
-import simulator.Command;
+import engine.MachineContext;
+import engine.ProgramRunner;
+import engine.state.Register;
+import static engine.MachineConstants.REGISTER_COUNT;
+import engine.commands.Command;
 
 import java.io.PrintStream;
 
-class QuietMachine implements IMachine {
-    private final IMachine inner;
+/**
+ * Quiet execution wrapper - runs program without per-instruction output,
+ * provides method to print final register state.
+ * Works directly with ProgramRunner.
+ */
+class QuietMachine {
+    private final MachineContext machine;
+    private final ProgramRunner runner;
     private final PrintStream out;
-
     private final boolean printHex;
+    private boolean halted;
 
-    QuietMachine(IMachine inner, PrintStream out, boolean printHex) {
-        this.inner = inner;
+    QuietMachine(MachineContext machine, ProgramRunner runner, PrintStream out, boolean printHex) {
+        this.machine = machine;
+        this.runner = runner;
         this.out = out;
         this.printHex = printHex;
     }
 
-    @Override
     public boolean hasHalted() {
-        return inner.hasHalted();
+        return halted;
     }
 
-    @Override
     public Command executeNext() {
-        Command command = inner.executeNext();
-        return command;
+        if (halted) {
+            return null;
+        }
+        boolean hasMore = runner.step();
+        Command executed = runner.getLastExecuted();
+        if (!hasMore) {
+            halted = true;
+        }
+        return executed;
     }
 
     public void printRegisterState() {
         String format = printHex ? "R%s: 0x%X" : "R%s: %d";
-        for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            Register register = Enviroment.REGISTERS.getRegister(i);
+        for (int i = 0; i < REGISTER_COUNT; i++) {
+            Register register = machine.getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             out.println(String.format(format, i, regValue));
         }

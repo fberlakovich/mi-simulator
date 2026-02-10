@@ -1,49 +1,68 @@
 package cli;
 
-import enviroment.Enviroment;
-import enviroment.MyByte;
-import enviroment.Register;
-import gui.CONSTANTS;
-import simulator.Command;
+import engine.MachineContext;
+import engine.ProgramRunner;
+import engine.util.MemoryChangeTracker;
+import engine.state.Register;
+import static engine.MachineConstants.REGISTER_COUNT;
+import engine.commands.Command;
 
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-class PrintingMachine implements IMachine {
-    private final IMachine inner;
+/**
+ * Decorator that prints machine state changes after each instruction execution.
+ * Works directly with ProgramRunner.
+ */
+class PrintingMachine {
+    private final MachineContext machine;
+    private final ProgramRunner runner;
     private final PrintStream out;
-
     private final boolean printHex;
 
-    private final int[] previousRegValues = new int[CONSTANTS.NUMBER_OF_REGISTER];
-    private final Map<Integer, MyByte> previousMemValues = new HashMap<>();
+    private final int[] previousRegValues = new int[REGISTER_COUNT];
+    private final Map<Integer, Byte> previousMemValues = new HashMap<>();
     private final Map<String, Boolean> previousFlags = new HashMap<>();
+    private final MemoryChangeTracker memoryTracker;
     private boolean initialized;
+    private boolean halted;
 
-    PrintingMachine(IMachine inner, PrintStream out, boolean printHex) {
-        this.inner = inner;
+    PrintingMachine(MachineContext machine, ProgramRunner runner, PrintStream out, boolean printHex) {
+        this.machine = machine;
+        this.runner = runner;
         this.out = out;
         this.printHex = printHex;
+        this.memoryTracker = new MemoryChangeTracker(machine);
     }
 
-    @Override
     public boolean hasHalted() {
-        return inner.hasHalted();
+        return halted;
     }
 
-    @Override
     public Command executeNext() {
-        if (!initialized) {
-            Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
-            for (Integer address : changes.keySet()) {
-                previousMemValues.put(address, changes.get(address));
-            }
-            fillCurrentFlags(previousFlags);
+        if (halted) {
+            return null;
         }
 
-        Command command = inner.executeNext();
-        out.println("INS: " + command);
+        if (!initialized) {
+            Set<Integer> changedAddresses = memoryTracker.getChangedAddresses();
+            for (Integer address : changedAddresses) {
+                previousMemValues.put(address, machine.getMemory().readByte(address));
+            }
+            fillCurrentFlags(previousFlags);
+            initialized = true;
+        }
+
+        boolean hasMore = runner.step();
+        Command executed = runner.getLastExecuted();
+
+        if (!hasMore) {
+            halted = true;
+        }
+
+        out.println("INS: " + executed);
         printRegisterValues(previousRegValues);
         out.println();
         printFlags(previousFlags);
@@ -51,14 +70,14 @@ class PrintingMachine implements IMachine {
         printMemoryValues(previousMemValues);
         out.println();
         out.println();
-        return command;
+        return executed;
     }
 
-    private static void fillCurrentFlags(Map<String, Boolean> flags) {
-        flags.put("C", Enviroment.flags.isCarry());
-        flags.put("N", Enviroment.flags.isNegative());
-        flags.put("V", Enviroment.flags.isOverflow());
-        flags.put("Z", Enviroment.flags.isZero());
+    private void fillCurrentFlags(Map<String, Boolean> flags) {
+        flags.put("C", machine.getFlags().isCarry());
+        flags.put("N", machine.getFlags().isNegative());
+        flags.put("V", machine.getFlags().isOverflow());
+        flags.put("Z", machine.getFlags().isZero());
     }
 
     static class Separator {
@@ -83,88 +102,62 @@ class PrintingMachine implements IMachine {
         Map<String, Boolean> flags = new HashMap<>();
         fillCurrentFlags(flags);
         Separator separator = new Separator(out);
+        String changedFmt = printHex ? "%s: %02X -> %02X" : "%s: %d -> %d";
+        String unchangedFmt = printHex ? "%s: %02X" : "%s: %d";
         for (String flag : flags.keySet()) {
-            if (flags.get(flag) != previousFlags.get(flag)) {
-                String format;
-                if (!printHex) {
-                    format = "%s: %d -> %d";
-                } else {
-                    format = "%s: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
+            if (!java.util.Objects.equals(flags.get(flag), previousFlags.get(flag))) {
+                separator.printColumn(String.format(changedFmt, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "%s: %d";
-                } else {
-                    format = "%s: %02X";
-                }
-                separator.printColumn(String.format(format, flag, asBit(flags.get(flag))));
+                separator.printColumn(String.format(unchangedFmt, flag, asBit(flags.get(flag))));
             }
         }
         fillCurrentFlags(previousFlags);
     }
 
 
-    private void printMemoryValues(Map<Integer, MyByte> previousMemValues) {
-        Map<Integer, MyByte> changes = Enviroment.MEMORY.getChanges();
+    private void printMemoryValues(Map<Integer, Byte> previousMemValues) {
+        Set<Integer> changedAddresses = memoryTracker.getChangedAddresses();
         Separator separator = new Separator(out);
 
-        for (Integer address : changes.keySet()) {
-            int currentValue = changes.get(address).getContent();
-            int previousValue = previousMemValues.containsKey(address) ? previousMemValues.get(address).getContent() : 0;
+        // Sort addresses for consistent output
+        java.util.List<Integer> sortedAddresses = new java.util.ArrayList<>(changedAddresses);
+        java.util.Collections.sort(sortedAddresses);
+
+        String changedFmt = printHex ? "%02X: %02X -> %02X" : "%d: %d -> %d";
+        String unchangedFmt = printHex ? "%02X: %02X" : "%d: %d";
+
+        for (Integer address : sortedAddresses) {
+            byte currentByte = machine.getMemory().readByte(address);
+            int currentValue = currentByte & 0xFF;
+            int previousValue = previousMemValues.containsKey(address) ? (previousMemValues.get(address) & 0xFF) : 0;
 
             if (previousValue == 0 && currentValue == 0)
                 continue;
 
-            previousMemValues.put(address, changes.get(address));
+            previousMemValues.put(address, currentByte);
             if (previousValue != currentValue) {
-                String format;
-                if (!printHex) {
-                    format = "%d: %d -> %d";
-                } else {
-                    format = "%02X: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, address, previousValue, currentValue));
+                separator.printColumn(String.format(changedFmt, address, previousValue, currentValue));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "%d: %d";
-                } else {
-                    format = "%02X: %02X";
-                }
-
-                separator.printColumn(String.format(format, address, currentValue));
+                separator.printColumn(String.format(unchangedFmt, address, currentValue));
             }
         }
     }
 
     private void printRegisterValues(int[] previousRegValues) {
         Separator separator = new Separator(out);
-        for (int i = 0; i < CONSTANTS.NUMBER_OF_REGISTER; i++) {
-            Register register = Enviroment.REGISTERS.getRegister(i);
+        String changedFmt = printHex ? "R%s: %02X -> %02X" : "R%s: %d -> %d";
+        String unchangedFmt = printHex ? "R%s: %02X" : "R%s: %d";
+        for (int i = 0; i < REGISTER_COUNT; i++) {
+            Register register = machine.getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             if (previousRegValues[i] == regValue && regValue == 0)
                 continue;
             if (previousRegValues[i] != regValue) {
-                String format;
-                if (!printHex) {
-                    format = "R%s: %d -> %d";
-                } else {
-                    format = "R%s: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, i, previousRegValues[i], regValue));
+                separator.printColumn(String.format(changedFmt, i, previousRegValues[i], regValue));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "R%s: %d";
-                } else {
-                    format = "R%s: %02X";
-                }
-                separator.printColumn(String.format(format, i, regValue));
+                separator.printColumn(String.format(unchangedFmt, i, regValue));
             }
             previousRegValues[i] = regValue;
-            register.reset();
         }
     }
 

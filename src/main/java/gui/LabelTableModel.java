@@ -1,154 +1,89 @@
-/**
- *
- */
 package gui;
 
-import codegenerator.Label;
+import engine.program.Label;
 
 import javax.swing.event.TableModelListener;
 import javax.swing.table.TableModel;
 import java.util.ArrayList;
 
 /**
- * @author Cyberdyne
- *
+ * Table model for displaying labels and their addresses.
  */
 public class LabelTableModel implements TableModel {
 
-    /** Daten einer Speicherzeile */
+    /** Label data */
     private ArrayList<Label> data;
 
     /**
-     * Instantiates a new memory table.
+     * Creates a new label table model.
      *
-     * @param in
-     *            the in
+     * @param labels the list of labels to display
      */
-    public LabelTableModel(ArrayList<Label> in) {
-        data = in;
-
+    public LabelTableModel(ArrayList<Label> labels) {
+        data = labels;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see
-     * javax.swing.table.TableModel#addTableModelListener(javax.swing.event.
-     * TableModelListener)
-     */
     @Override
-    public void addTableModelListener(TableModelListener arg0) {
-        // TODO Auto-generated method stub
-
+    public void addTableModelListener(TableModelListener listener) {
+        // Not supported - table is read-only
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#getColumnClass(int)
-     */
     @Override
-    public Class<?> getColumnClass(int arg0) {
-
+    public Class<?> getColumnClass(int columnIndex) {
         return String.class;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#getColumnCount()
-     */
     @Override
     public int getColumnCount() {
-        // TODO Auto-generated method stub
         return 3;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#getColumnName(int)
-     */
     @Override
-    public String getColumnName(int arg0) {
-        switch (arg0) {
+    public String getColumnName(int column) {
+        switch (column) {
             case 0:
                 return "Label";
             case 1:
-                return "Adresse (int)";
+                return "Address (dec)";
             case 2:
-                return "Adresse (hex)";
-
+                return "Address (hex)";
+            default:
+                return null;
         }
-        // TODO Auto-generated method stub
-        return null;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#getRowCount()
-     */
     @Override
     public int getRowCount() {
-        // TODO Auto-generated method stub
         return data.size();
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#getValueAt(int, int)
-     */
     @Override
-    public Object getValueAt(int arg0, int arg1) {
-        Label label = data.get(arg0);
-        switch (arg1) {
+    public Object getValueAt(int row, int column) {
+        Label label = data.get(row);
+        switch (column) {
             case 0:
                 return label.getName();
             case 1:
                 return Integer.toString(label.getAdress());
             case 2:
                 return Integer.toHexString(label.getAdress());
+            default:
+                return null;
         }
-        // TODO Auto-generated method stub
-        return null;
-
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#isCellEditable(int, int)
-     */
     @Override
-    public boolean isCellEditable(int arg0, int arg1) {
-        // TODO Auto-generated method stub
+    public boolean isCellEditable(int row, int column) {
         return false;
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see
-     * javax.swing.table.TableModel#removeTableModelListener(javax.swing.event.
-     * TableModelListener)
-     */
     @Override
-    public void removeTableModelListener(TableModelListener arg0) {
-        // TODO Auto-generated method stub
-
+    public void removeTableModelListener(TableModelListener listener) {
+        // Not supported - table is read-only
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.table.TableModel#setValueAt(java.lang.Object, int, int)
-     */
     @Override
-    public void setValueAt(Object arg0, int arg1, int arg2) {
-        // TODO Auto-generated method stub
-
+    public void setValueAt(Object value, int row, int column) {
+        // Not supported - table is read-only
     }
-
 }

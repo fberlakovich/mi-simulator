@@ -1,6 +1,6 @@
 package gui;
 
-import enviroment.Flags;
+import engine.state.Flags;
 
 import javax.swing.*;
 import java.awt.*;

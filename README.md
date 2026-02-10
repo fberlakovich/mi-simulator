@@ -100,9 +100,7 @@ bei einem Programmdurchlauf direkt als Zustandsdatei verwendet werden.
 
 ### Bekannte Probleme des CLI Modus ###
 
-* Aktuell werden auch im CLI Modus Java GUI Threads im Hintergrund gestartet (z.B. `AWT-Eventqueue`).
-  Dies liegt daran, dass die Logik und die Darstellungskomponenten des MI-Simulators noch nicht ausreichend entkoppelt
-  sind.
+* ~~Aktuell werden auch im CLI Modus Java GUI Threads im Hintergrund gestartet (z.B. `AWT-Eventqueue`).~~ **BEHOBEN** - Die Kernlogik ist nun vollständig von GUI-Komponenten entkoppelt.
 * Theoretisch ist die Programmdatei überflüssig, wenn eine Zustandsdatei angegeben wird.
   Der Zustand enthält bereits das kodierte Programm.
   Allerdings unterstützt die Programmlogik des MI-Simulators aktuell noch keine Ausführung ohne ein Programm in
@@ -110,3 +108,137 @@ bei einem Programmdurchlauf direkt als Zustandsdatei verwendet werden.
 
 ## Bekannte Probleme ##
 * Unter Linux kann es mit bestimmten Window Managern zu dem Problem kommen, dass das MI-Simulator Fenster leer ist bzw. kein Inhalt angezeigt wird. In diesem Fall kann es helfen den Simulator mit `export _JAVA_AWT_WM_NONREPARENTING=1` zu starten.
+
+---
+
+## Architecture / Architektur ##
+
+The simulator is organized into an **engine** (core library with no GUI dependencies) and **frontends** (GUI and CLI).
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            FRONTENDS                                        │
+├──────────────────────────────────┬──────────────────────────────────────────┤
+│            gui/                  │               cli/                       │
+│  ┌──────────────────────────┐    │    ┌──────────────────────────────────┐  │
+│  │     Window.java          │    │    │     Main.java                    │  │
+│  │  (Main application)      │    │    │  (CLI entry point)               │  │
+│  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
+│  │     GuiState.java        │    │    │     PrintingMachine.java         │  │
+│  │  (GUI-specific state)    │    │    │  (Output decorator)              │  │
+│  ├──────────────────────────┤    │    ├──────────────────────────────────┤  │
+│  │     MemoryView.java      │    │    │     QuietMachine.java            │  │
+│  │  (Memory visualization)  │    │    │  (Final state only)              │  │
+│  └──────────────────────────┘    │    └──────────────────────────────────┘  │
+└──────────────────────────────────┴──────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     ENGINE (No GUI Dependencies)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌───────────────┐   ┌───────────────┐   ┌───────────────┐                 │
+│  │engine/scanner │ → │ engine/parser │ → │engine/program │                 │
+│  │   (Lexer)     │   │   (Parser)    │   │(Label resolve)│                 │
+│  └───────────────┘   └───────────────┘   └───────────────┘                 │
+│                                                   │                         │
+│                                                   ▼                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                       engine/commands/                               │   │
+│  │   41 instruction implementations: ADD, SUB, MULT, DIV, MOVE, JUMP,  │   │
+│  │   CALL, RET, PUSHR, POPR, CMP, OR, ANDNOT, XOR, SH, ROT, EXT, INS,  │   │
+│  │   FINDS, FINDC, JBSSI, JBCCI, CONV, etc.                            │   │
+│  │   + Operand.java (addressing mode decoder/encoder)                   │   │
+│  │   + Opcode.java (instruction opcode definitions)                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                        │                                    │
+│                                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                          engine/state/                               │   │
+│  │   Machine state: Memory, Register, Flags, MyByte                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                        │                                    │
+│                                        ▼                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │   engine/Machine.java - Central machine instance                     │   │
+│  │   engine/ProgramRunner.java - Execution engine with callbacks       │   │
+│  │   engine/MachineConstants.java - Register count, memory size, etc.  │   │
+│  │   engine/events/ - Event bus for publish-subscribe notifications    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Package Descriptions / Paketbeschreibungen
+
+| Package | Description |
+|---------|-------------|
+| `engine/` | Core machine: `Machine.java`, `ProgramRunner.java`, `MachineConstants.java` |
+| `engine/commands/` | 41 instruction implementations + addressing modes (`Operand`, `IndAddressing`, etc.) |
+| `engine/state/` | Machine runtime state (`Memory`, `Register`, `Flags`, `MyByte`) |
+| `engine/scanner/` | Lexical analysis - tokenizes assembly source code |
+| `engine/parser/` | Syntax analysis - parses tokens into commands |
+| `engine/program/` | Label resolution and program representation |
+| `engine/events/` | Publish-subscribe event system for decoupled notifications |
+| `engine/util/` | Utility classes (`NumberConversion`) |
+| `Exceptions/` | Custom exception types |
+| `gui/` | Swing-based GUI (entry: `gui.Main`) |
+| `cli/` | Command-line interface (entry: `cli.Main`) |
+
+### Machine Configuration / Maschinenkonfiguration
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `MEMORY_SIZE` | 1,048,576 | 1MB of addressable memory |
+| `REGISTER_COUNT` | 16 | Registers R0-R15 |
+| `SP_REGISTER` | 14 | Stack Pointer (R14) |
+| `PC_REGISTER` | 15 | Program Counter (R15) |
+| `WORD_SIZE` | 4 | 32-bit word |
+
+### Data Types / Datentypen
+
+| Type | Size | Description |
+|------|------|-------------|
+| B | 1 byte | Byte |
+| H | 2 bytes | Half-word (16-bit) |
+| W | 4 bytes | Word (32-bit) |
+| F | 4 bytes | Float (IEEE 754) |
+| D | 8 bytes | Double (IEEE 754) |
+
+### Event System / Ereignissystem
+
+The engine uses a publish-subscribe event system for decoupled communication:
+
+```java
+// Subscribe to memory errors
+machine.getEventBus().subscribe(MemoryAccessEvent.class, event -> {
+    System.out.println("Memory error at " + event.getAddress());
+});
+
+// Subscribe to all events
+machine.getEventBus().subscribeAll(event -> {
+    System.out.println("Event: " + event);
+});
+```
+
+Available events:
+- `MemoryAccessEvent` - Out-of-bounds memory access
+- `AssemblyEvent` - Assembly status (started, success, failed, labels resolved)
+- `ExecutionStateEvent` - Program execution state changes
+- `RegisterChangeEvent` - Register value changes
+- `BreakpointEvent` - Breakpoint hit notifications
+
+## Tests ##
+
+The test suite is organized into three layers:
+
+1. **Unit Tests** (`engine/commands/`, `engine/state/`) - Test individual instructions and machine state operations. Each instruction class has a corresponding test that verifies correct computation, flag behavior per MI specification, and edge cases.
+
+2. **Integration Tests** (`cli/IntegrationTests.java`) - Parameterized tests that load `.mi` assembly programs from `src/test/resources/programs/`, execute them, and compare output against expected results. Covers addressing modes, instruction combinations, and real program behavior.
+
+3. **Fuzz Tests** (`engine/parser/ParserFuzzTest.java`) - Random input generation to catch parser crashes and edge cases.
+
+```bash
+./gradlew test      # Run all tests
+./gradlew pitest    # Run mutation testing (report: build/reports/pitest/index.html)
+```

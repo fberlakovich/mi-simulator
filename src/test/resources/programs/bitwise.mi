@@ -1,0 +1,8 @@
+          SEG
+          MOVE W I H'FF00FF00', R0
+          MOVE W I H'0F0F0F0F', R1
+          ANDNOT W R0, R1, R2
+          OR W R0, R1, R3
+          XOR W R0, R1, R4
+          HALT
+          END

@@ -1,0 +1,8 @@
+          SEG
+          MOVE W I 1000, R14
+          MOVE W I H'DEADBEEF', R0
+          MOVE W R0, !R14
+          SUB W I 4, R14
+          MOVE W !R14, R1
+          HALT
+          END

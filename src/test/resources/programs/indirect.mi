@@ -1,0 +1,18 @@
+          SEG
+
+          MOVE W I 500, R0
+          MOVE W I 600, R1
+          MOVE W I H'12345678', R2
+
+          MOVE W R2, !R0
+          MOVE W !R0, R3
+
+          MOVE W I H'AABBCCDD', R4
+          MOVE W R4, 4+!R0
+          MOVE W 4+!R0, R5
+
+          MOVE W I 504, !R1
+          MOVE W !!R1, R6
+
+          HALT
+          END

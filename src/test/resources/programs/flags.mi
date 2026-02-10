@@ -1,0 +1,28 @@
+          SEG
+
+          MOVE W I H'7FFFFFFF', R0
+          ADD W I 1, R0, R1
+
+          MOVE W I H'80000000', R2
+          SUB W I 1, R2, R3
+
+          MOVE W I 0, R4
+          SUB W I 1, R4, R5
+
+          MOVE W I H'FFFFFFFF', R6
+          ADD W I 1, R6, R7
+
+          MOVE W I 10, R8
+          CMP W I 10, R8
+
+          MOVE W I 5, R9
+          CMP W I 10, R9
+
+          MOVE W I 15, R10
+          CMP W I 10, R10
+
+          MOVE W I -5, R11
+          CMP W I 5, R11
+
+          HALT
+          END

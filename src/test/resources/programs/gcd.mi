@@ -1,0 +1,15 @@
+        SEG
+        MOVE W I 48, R0
+        MOVE W I 18, R1
+loop:   CMP W I 0, R1
+        JEQ done
+        MOVE W R0, R2
+        DIV W R1, R2
+        MULT W R1, R2
+        SUB W R2, R0
+        MOVE W R1, R2
+        MOVE W R0, R1
+        MOVE W R2, R0
+        JUMP loop
+done:   HALT
+        END

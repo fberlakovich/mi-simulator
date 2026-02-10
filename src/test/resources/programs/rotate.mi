@@ -1,0 +1,22 @@
+          SEG
+
+          MOVE W I H'12345678', R0
+          ROT I 4, R0, R1
+
+          MOVE W I H'12345678', R2
+          ROT I -4, R2, R3
+
+          MOVE W I H'80000001', R4
+          ROT I 1, R4, R5
+
+          MOVE W I H'80000001', R6
+          ROT I -1, R6, R7
+
+          MOVE W I H'FFFFFFFF', R8
+          ROT I 16, R8, R9
+
+          MOVE W I 1, R10
+          ROT I 31, R10, R11
+
+          HALT
+          END

@@ -1,0 +1,23 @@
+        SEG
+        MOVE W I 5000, R0
+        MOVE W I 10, !R0+
+        MOVE W I 20, !R0+
+        MOVE W I 30, !R0+
+        MOVE W I 40, !R0+
+        MOVE W I 50, !R0
+        MOVE W I 5000, R0
+        MOVE W I 5, R1
+        MOVE W I 0, R2
+        MOVE W I 0, R3
+loop:   CMP W R3, R1
+        JGE done
+        MOVE W R0, R4
+        MOVE W R3, R5
+        MULT W I 4, R5
+        ADD W R5, R4
+        MOVE W !R4, R6
+        ADD W R6, R2
+        ADD W I 1, R3
+        JUMP loop
+done:   HALT
+        END

@@ -4,7 +4,6 @@
 package gui;
 
 import javax.swing.*;
-import javax.swing.event.ListDataListener;
 import java.util.ArrayList;
 
 /**
@@ -12,7 +11,7 @@ import java.util.ArrayList;
  *
  * @author Matthias oehme
  */
-public class MemoryTable implements ListModel {
+public class MemoryTable extends AbstractListModel<MemoryTableEntry> {
 
     /** Daten einer Speicherzeile */
     private ArrayList<MemoryTableEntry> data;
@@ -25,19 +24,6 @@ public class MemoryTable implements ListModel {
      */
     public MemoryTable(ArrayList<MemoryTableEntry> in) {
         data = in;
-
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.ListModel#addListDataListener(javax.swing.event.
-     * ListDataListener )
-     */
-    @Override
-    public void addListDataListener(ListDataListener l) {
-        // TODO Auto-generated method stub
-
     }
 
     /*
@@ -46,7 +32,7 @@ public class MemoryTable implements ListModel {
      * @see javax.swing.ListModel#getElementAt(int)
      */
     @Override
-    public Object getElementAt(int index) {
+    public MemoryTableEntry getElementAt(int index) {
         return data.get(index);
     }
 
@@ -57,20 +43,14 @@ public class MemoryTable implements ListModel {
      */
     @Override
     public int getSize() {
-        // TODO Auto-generated method stub
         return data.size();
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see javax.swing.ListModel#removeListDataListener(javax.swing.event.
-     * ListDataListener)
-     */
-    @Override
-    public void removeListDataListener(ListDataListener l) {
-        // TODO Auto-generated method stub
-
+    public void fireRowUpdated(int index) {
+        fireContentsChanged(this, index, index);
     }
 
+    public ArrayList<MemoryTableEntry> getData() {
+        return data;
+    }
 }
