@@ -223,33 +223,34 @@ public final class OperandDecoder {
         return null;
     }
 
-    private static Operand decodeRelativeWithOffset(Machine machine, int reg, int offsetSize, int length) {
+    /**
+     * Reads an offset value from memory at the current PC and advances the PC.
+     */
+    private static int readOffset(Machine machine, int offsetSize) {
         machine.addToPC(offsetSize);
-        int offset = NumberConversion.myBytetoIntWithSign(
+        return NumberConversion.myBytetoIntWithSign(
                 machine.getMemory().getContent(machine.getPC() - offsetSize, offsetSize));
+    }
+
+    private static Operand decodeRelativeWithOffset(Machine machine, int reg, int offsetSize, int length) {
+        int offset = readOffset(machine, offsetSize);
         return new RelAddressing(machine, offset, reg, length, machine.getPC() - offsetSize);
     }
 
     private static Operand decodeIndirectWithOffset(Machine machine, int reg, int offsetSize, int length) {
-        machine.addToPC(offsetSize);
-        int offset = NumberConversion.myBytetoIntWithSign(
-                machine.getMemory().getContent(machine.getPC() - offsetSize, offsetSize));
+        int offset = readOffset(machine, offsetSize);
         return new IndAddressing(machine, offset, reg, length, machine.getPC() - offsetSize);
     }
 
     private static Operand decodeRelativeWithOffsetIndexed(Machine machine, int reg, int index,
                                                             int offsetSize, int length) {
-        machine.addToPC(offsetSize);
-        int offset = NumberConversion.myBytetoIntWithSign(
-                machine.getMemory().getContent(machine.getPC() - offsetSize, offsetSize));
+        int offset = readOffset(machine, offsetSize);
         return new RelAddressing(machine, offset, reg, index, length, machine.getPC() - offsetSize);
     }
 
     private static Operand decodeIndirectWithOffsetIndexed(Machine machine, int reg, int index,
                                                             int offsetSize, int length) {
-        machine.addToPC(offsetSize);
-        int offset = NumberConversion.myBytetoIntWithSign(
-                machine.getMemory().getContent(machine.getPC() - offsetSize, offsetSize));
+        int offset = readOffset(machine, offsetSize);
         return new IndAddressing(machine, offset, reg, index, length, machine.getPC() - offsetSize);
     }
 }

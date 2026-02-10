@@ -1,16 +1,12 @@
 package engine;
 
-import engine.program.Program;
 import engine.commands.Command;
 import engine.commands.Halt;
-import engine.events.AssemblyEvent;
+import engine.commands.Opcode;
+import engine.commands.OpcodeDecodeException;
 import engine.events.ExecutionEvent;
 import engine.events.MachineEventListener;
 import engine.events.MemoryAccessErrorEvent;
-import engine.commands.Opcode;
-import engine.commands.OpcodeDecodeException;
-
-import java.util.ArrayList;
 
 /**
  * Executes MI programs.
@@ -56,22 +52,13 @@ public class ProgramRunner extends Thread implements ExecutionController {
 
     /**
      * Gets the command at a specific address from the loaded program.
+     * Delegates to Machine which holds the program state.
      *
      * @param address the memory address
      * @return the Command or null
      */
     public Command getCommandAtAddress(int address) {
-        Program program = machine.getProgram();
-        if (program == null) {
-            return null;
-        }
-        ArrayList<Command> commands = program.getCommands();
-        for (Command com : commands) {
-            if (com.getAdress() == address) {
-                return com;
-            }
-        }
-        return null;
+        return machine.getCommandAtAddress(address);
     }
 
     /**
@@ -126,7 +113,7 @@ public class ProgramRunner extends Thread implements ExecutionController {
 
     @Override
     public void run() {
-        MachineEventListener memoryErrorListener = e -> handleMemoryError(((MemoryAccessErrorEvent) e));
+        MachineEventListener memoryErrorListener = e -> handleMemoryError((MemoryAccessErrorEvent) e);
         machine.getEventBus().subscribe(MemoryAccessErrorEvent.class, memoryErrorListener);
 
         try {

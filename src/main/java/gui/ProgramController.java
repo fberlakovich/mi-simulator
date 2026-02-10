@@ -4,8 +4,6 @@ import engine.Machine;
 import engine.MachineContext;
 import engine.ProgramRunner;
 import engine.events.ExecutionEvent;
-import engine.events.MachineEvent;
-import engine.events.MachineEventListener;
 import engine.events.MemoryAccessErrorEvent;
 import engine.parser.Parser;
 import engine.program.Program;
@@ -162,24 +160,12 @@ public class ProgramController {
         }
         listenerSetup = true;
 
-        machine.getEventBus().subscribe(ExecutionEvent.class, new MachineEventListener() {
-            @Override
-            public void onEvent(MachineEvent event) {
-                if (event instanceof ExecutionEvent) {
-                    ExecutionEvent execEvent = (ExecutionEvent) event;
-                    handleExecutionEvent(execEvent);
-                }
-            }
-        });
+        machine.getEventBus().subscribe(ExecutionEvent.class,
+                event -> handleExecutionEvent((ExecutionEvent) event));
 
-        machine.getEventBus().subscribe(MemoryAccessErrorEvent.class, new MachineEventListener() {
-            @Override
-            public void onEvent(MachineEvent event) {
-                if (event instanceof MemoryAccessErrorEvent) {
-                    MemoryAccessErrorEvent errorEvent = (MemoryAccessErrorEvent) event;
-                    callback.onMemoryAccessError(errorEvent.getAddress(), errorEvent.getType().toString());
-                }
-            }
+        machine.getEventBus().subscribe(MemoryAccessErrorEvent.class, event -> {
+            MemoryAccessErrorEvent errorEvent = (MemoryAccessErrorEvent) event;
+            callback.onMemoryAccessError(errorEvent.getAddress(), errorEvent.getType().toString());
         });
     }
 

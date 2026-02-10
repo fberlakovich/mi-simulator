@@ -1,6 +1,3 @@
-/**
- *
- */
 package engine.commands;
 
 import engine.program.LabelInUse;
@@ -72,15 +69,9 @@ public class Ins extends Command {
         Operand op4 = Operand.decode(machine, 4);
         return new Ins(machine, 0, pc, op1, op2, op3, op4, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -101,12 +92,6 @@ public class Ins extends Command {
         }
         return ret;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte opcode = new MyByte("F8");
@@ -142,12 +127,6 @@ public class Ins extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel())) || (
@@ -155,12 +134,6 @@ public class Ins extends Command {
                 (op3 instanceof AbsAddress) && (((AbsAddress) op3).hasLabel())) || (
                 (op4 instanceof AbsAddress) && (((AbsAddress) op4).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         super.run();
@@ -193,12 +166,6 @@ public class Ins extends Command {
         machine.getFlags().setZero((int)result == 0);
         machine.getFlags().setNegative((int)result < 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -219,12 +186,6 @@ public class Ins extends Command {
                             + op3.encode().length);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return "INS " + op1.toString() + ", " + op2.toString() + ", " + op3.toString()

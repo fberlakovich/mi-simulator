@@ -306,8 +306,7 @@ public class Machine implements MachineContext {
         if (program == null) {
             return null;
         }
-        java.util.ArrayList<Command> commands = program.getCommands();
-        for (Command com : commands) {
+        for (Command com : program.getCommands()) {
             if (com.getAdress() == address) {
                 return com;
             }

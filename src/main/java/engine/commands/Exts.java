@@ -1,6 +1,3 @@
-/**
- *
- */
 package engine.commands;
 
 import engine.program.LabelInUse;
@@ -27,7 +24,7 @@ public class Exts extends Command {
     /** dritter Operand */
     Operand op3;
 
-    /** dritter Operand */
+    /** vierter Operand */
     Operand op4;
 
     /**
@@ -72,15 +69,9 @@ public class Exts extends Command {
         Operand op4 = Operand.decode(machine, 4);
         return new Exts(machine, 0, pc, op1, op2, op3, op4, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -101,12 +92,6 @@ public class Exts extends Command {
         }
         return ret;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte opcode = new MyByte("F6");
@@ -141,12 +126,6 @@ public class Exts extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel())) || (
@@ -154,12 +133,6 @@ public class Exts extends Command {
                 (op3 instanceof AbsAddress) && (((AbsAddress) op3).hasLabel())) || (
                 (op4 instanceof AbsAddress) && (((AbsAddress) op4).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         super.run();
@@ -196,12 +169,6 @@ public class Exts extends Command {
         machine.getFlags().setZero(extracted == 0);
         machine.getFlags().setNegative(extracted < 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -222,12 +189,6 @@ public class Exts extends Command {
                             + op3.encode().length);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
 

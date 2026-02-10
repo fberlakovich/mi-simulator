@@ -48,15 +48,9 @@ public class DD extends Command {
         setAdress(adress);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         for (Operand op : op1) {
             if (op instanceof AbsAddress && ((AbsAddress) op).hasLabel()) {
                 ret.add(new LabelInUse(this, ((AbsAddress) op).getLabel(),
@@ -66,12 +60,6 @@ public class DD extends Command {
 
         return ret;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte[][] opc1 = new MyByte[op1.length][];
@@ -95,12 +83,6 @@ public class DD extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         for (Operand op : op1) {
@@ -110,22 +92,10 @@ public class DD extends Command {
         }
         return false;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public void run() {
         throw new engine.InternalError("Data definitions (DD) are not executable");
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;

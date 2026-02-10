@@ -23,21 +23,6 @@ public class Call extends Command {
     Operand op1;
 
     /**
-     * true, falls es sich um einen 3-Adressbefehl handelt
-     */
-    boolean three = false;
-
-    /**
-     * true, falls es ein Gleitpunktzahlbefehl ist
-     */
-    boolean floating = false;
-
-    /**
-     * Länge Befehls B = 1, H = 2, W = 4, F = 4, D = 8
-     */
-    int length = 0;
-
-    /**
      * Konstruktor für einen Call-Befehl
      *
      * @param machine the machine this command operates on
@@ -63,15 +48,9 @@ public class Call extends Command {
         Operand target = Operand.decode(machine, opcode.length);
         return new Call(machine, 0, pc, opcode.length, target, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -79,16 +58,9 @@ public class Call extends Command {
 
         return ret;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
-        MyByte opcode = null;
-        opcode = new MyByte("F2");
+        MyByte opcode = new MyByte("F2");
 
         int x = 1;
         byte[] opc1 = op1.encode();
@@ -101,22 +73,10 @@ public class Call extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         int ziel = 0;
@@ -134,12 +94,6 @@ public class Call extends Command {
         machine.getRegisters().getRegister(PC_REGISTER)
                 .setContent(NumberConversion.intToByte(ziel, 4));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -147,12 +101,6 @@ public class Call extends Command {
             ((AbsAddress) op1).setOrt(adress + 1);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return "CALL " + op1.toString();

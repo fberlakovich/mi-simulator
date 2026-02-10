@@ -99,7 +99,7 @@ public abstract class Command {
      * @return Label des Befehls
      */
     public ArrayList<LabelInUse> getLabel() {
-        return new ArrayList<LabelInUse>();
+        return new ArrayList<>();
     }
 
     /**
@@ -144,7 +144,7 @@ public abstract class Command {
      * @return true, wenn Befehl label enthält
      */
     public boolean hasLabel() {
-        return getLabel().size() != 0;
+        return !getLabel().isEmpty();
     }
 
     /**

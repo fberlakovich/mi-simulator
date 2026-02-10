@@ -71,15 +71,9 @@ public class Cmp extends Command {
         Operand op2 = Operand.decode(machine, opcode.length);
         return new Cmp(machine, 0, pc, opcode.length, op1, op2, 0, 0, opcode.floating);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -129,23 +123,11 @@ public class Cmp extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel())) || (
                 (op2 instanceof AbsAddress) && (((AbsAddress) op2).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
 
@@ -182,12 +164,6 @@ public class Cmp extends Command {
         }
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -199,12 +175,6 @@ public class Cmp extends Command {
         }
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         String bhwfd = "";

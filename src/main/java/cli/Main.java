@@ -210,13 +210,11 @@ public class Main {
 
         @Override
         public void onEvent(MachineEvent event) {
-            if (event instanceof MemoryAccessErrorEvent) {
-                MemoryAccessErrorEvent mae = (MemoryAccessErrorEvent) event;
-                String errorMsg = String.format("Memory error at address 0x%X: %s",
-                        mae.getAddress(), mae.getType());
-                errors.add(errorMsg);
-                System.err.println(errorMsg);
-            }
+            MemoryAccessErrorEvent mae = (MemoryAccessErrorEvent) event;
+            String errorMsg = String.format("Memory error at address 0x%X: %s",
+                    mae.getAddress(), mae.getType());
+            errors.add(errorMsg);
+            System.err.println(errorMsg);
         }
 
         boolean hasErrors() {

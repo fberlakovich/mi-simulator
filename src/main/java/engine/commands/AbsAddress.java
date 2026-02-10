@@ -81,22 +81,10 @@ public class AbsAddress implements Operand, AdressGetter {
     public Operand copy() {
         return new AbsAddress(machine, label, length, ort, offset);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see interpreter.Operand#getAdress()
-     */
     @Override
     public int getAdress() {
         return adress;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Operand#getContent()
-     */
     @Override
     public MyByte[] getContent() {
         return machine.getMemory().getContent(adress + offset, length);
@@ -161,12 +149,6 @@ public class AbsAddress implements Operand, AdressGetter {
     public void setAdress(int adr) {
         adress = adr;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Operand#setContent(compiler.MyByte[], int)
-     */
     @Override
     public void setContent(MyByte[] content, int length) {
         machine.getMemory().setContent(adress + offset, content);
@@ -180,12 +162,6 @@ public class AbsAddress implements Operand, AdressGetter {
     public void setOrt(int ort) {
         this.ort = ort;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return Integer.toString(getAdress()) + (offset != 0 ?

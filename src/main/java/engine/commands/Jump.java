@@ -68,7 +68,7 @@ public class Jump extends Command {
 
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));

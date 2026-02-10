@@ -1,6 +1,3 @@
-/**
- *
- */
 package engine.commands;
 
 import engine.Machine;
@@ -43,12 +40,6 @@ public class Pushr extends Command {
     public static Command decode(Machine machine, int pc, Opcode opcode) {
         return new Pushr(machine, 0, pc, 4, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte opcode = new MyByte("F4");
@@ -56,12 +47,6 @@ public class Pushr extends Command {
         return MyByte.toByteArray(new MyByte[]{opcode});
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         super.run();
@@ -76,12 +61,6 @@ public class Pushr extends Command {
         }
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return "PUSHR";

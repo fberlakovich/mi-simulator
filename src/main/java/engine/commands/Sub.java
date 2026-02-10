@@ -102,15 +102,9 @@ public class Sub extends Command {
         }
         return new Sub(machine, 0, pc, opcode.length, op1, op2, 0, 0, opcode.floating);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -175,24 +169,12 @@ public class Sub extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel())) || (
                 (op2 instanceof AbsAddress) && (((AbsAddress) op2).hasLabel())) || (
                 (op3 instanceof AbsAddress) && (((AbsAddress) op3).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         super.run();
@@ -205,7 +187,7 @@ public class Sub extends Command {
                     Float ope1 = Float.intBitsToFloat(
                             NumberConversion.myBytetoIntWithoutSign(op1.getContent()));
                     Float ope2 = Float.intBitsToFloat(
-                            NumberConversion.myBytetoIntWithoutSign(((three == false)
+                            NumberConversion.myBytetoIntWithoutSign(((!three)
                                     && (op2 instanceof CellarAddressing)) ?
                                     ((CellarAddressing) op2).getContentWithoutOffset() :
                                     op2.getContent()));
@@ -225,7 +207,7 @@ public class Sub extends Command {
                     Double ope11 = Double.longBitsToDouble(
                             NumberConversion.myBytetoLongWithoutSign(op1.getContent()));
                     Double ope22 = Double.longBitsToDouble(
-                            NumberConversion.myBytetoLongWithoutSign(((three == false)
+                            NumberConversion.myBytetoLongWithoutSign(((!three)
                                     && (op2 instanceof CellarAddressing)) ?
                                     ((CellarAddressing) op2).getContentWithoutOffset() :
                                     op2.getContent()));
@@ -247,7 +229,7 @@ public class Sub extends Command {
         } else {
             carry = true;
             MyByte[] ope1 = op1.getContent();
-            MyByte[] ope2 = ((three == false) && (op2 instanceof CellarAddressing)) ?
+            MyByte[] ope2 = ((!three) && (op2 instanceof CellarAddressing)) ?
                     ((CellarAddressing) op2).getContentWithoutOffset() :
                     op2.getContent();
             for (int i = length - 1; i >= 0; i--) {
@@ -281,12 +263,6 @@ public class Sub extends Command {
         }
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -302,12 +278,6 @@ public class Sub extends Command {
                     adress + 1 + op1.encode().length + op2.encode().length);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         String bhwfd = "";

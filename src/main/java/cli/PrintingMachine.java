@@ -102,23 +102,13 @@ class PrintingMachine {
         Map<String, Boolean> flags = new HashMap<>();
         fillCurrentFlags(flags);
         Separator separator = new Separator(out);
+        String changedFmt = printHex ? "%s: %02X -> %02X" : "%s: %d -> %d";
+        String unchangedFmt = printHex ? "%s: %02X" : "%s: %d";
         for (String flag : flags.keySet()) {
             if (!java.util.Objects.equals(flags.get(flag), previousFlags.get(flag))) {
-                String format;
-                if (!printHex) {
-                    format = "%s: %d -> %d";
-                } else {
-                    format = "%s: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
+                separator.printColumn(String.format(changedFmt, flag, asBit(previousFlags.get(flag)), asBit(flags.get(flag))));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "%s: %d";
-                } else {
-                    format = "%s: %02X";
-                }
-                separator.printColumn(String.format(format, flag, asBit(flags.get(flag))));
+                separator.printColumn(String.format(unchangedFmt, flag, asBit(flags.get(flag))));
             }
         }
         fillCurrentFlags(previousFlags);
@@ -133,6 +123,9 @@ class PrintingMachine {
         java.util.List<Integer> sortedAddresses = new java.util.ArrayList<>(changedAddresses);
         java.util.Collections.sort(sortedAddresses);
 
+        String changedFmt = printHex ? "%02X: %02X -> %02X" : "%d: %d -> %d";
+        String unchangedFmt = printHex ? "%02X: %02X" : "%d: %d";
+
         for (Integer address : sortedAddresses) {
             byte currentByte = machine.getMemory().readByte(address);
             int currentValue = currentByte & 0xFF;
@@ -143,49 +136,26 @@ class PrintingMachine {
 
             previousMemValues.put(address, currentByte);
             if (previousValue != currentValue) {
-                String format;
-                if (!printHex) {
-                    format = "%d: %d -> %d";
-                } else {
-                    format = "%02X: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, address, previousValue, currentValue));
+                separator.printColumn(String.format(changedFmt, address, previousValue, currentValue));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "%d: %d";
-                } else {
-                    format = "%02X: %02X";
-                }
-
-                separator.printColumn(String.format(format, address, currentValue));
+                separator.printColumn(String.format(unchangedFmt, address, currentValue));
             }
         }
     }
 
     private void printRegisterValues(int[] previousRegValues) {
         Separator separator = new Separator(out);
+        String changedFmt = printHex ? "R%s: %02X -> %02X" : "R%s: %d -> %d";
+        String unchangedFmt = printHex ? "R%s: %02X" : "R%s: %d";
         for (int i = 0; i < REGISTER_COUNT; i++) {
             Register register = machine.getRegisters().getRegister(i);
             int regValue = register.getContentAsNumber(4);
             if (previousRegValues[i] == regValue && regValue == 0)
                 continue;
             if (previousRegValues[i] != regValue) {
-                String format;
-                if (!printHex) {
-                    format = "R%s: %d -> %d";
-                } else {
-                    format = "R%s: %02X -> %02X";
-                }
-                separator.printColumn(String.format(format, i, previousRegValues[i], regValue));
+                separator.printColumn(String.format(changedFmt, i, previousRegValues[i], regValue));
             } else {
-                String format;
-                if (!printHex) {
-                    format = "R%s: %d";
-                } else {
-                    format = "R%s: %02X";
-                }
-                separator.printColumn(String.format(format, i, regValue));
+                separator.printColumn(String.format(unchangedFmt, i, regValue));
             }
             previousRegValues[i] = regValue;
         }

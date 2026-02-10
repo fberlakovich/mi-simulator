@@ -1,6 +1,3 @@
-/**
- *
- */
 package engine.commands;
 
 import engine.Machine;
@@ -100,22 +97,10 @@ public class IndAddressing implements Operand, AdressGetter {
     public Machine getMachine() {
         return machine;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Operand#copy()
-     */
     @Override
     public Operand copy() {
         return null;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see interpreter.AdressGetter#getAdress()
-     */
     @Override
     public int getAdress() {
         if (nr1 == PC_REGISTER) {
@@ -151,12 +136,6 @@ public class IndAddressing implements Operand, AdressGetter {
         }
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see interpreter.Operand#getContent()
-     */
     @Override
     public MyByte[] getContent() {
         if (nr1 == PC_REGISTER) {
@@ -246,12 +225,6 @@ public class IndAddressing implements Operand, AdressGetter {
                         NumberConversion.intToByte(offset, 4)[3]};
         return MyByte.toByteArray(ret);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see interpreter.Operand#setContent(interpreter.MyByte[], int)
-     */
     @Override
     public void setContent(MyByte[] content, int length) {
         if (nr1 == PC_REGISTER) {
@@ -284,12 +257,6 @@ public class IndAddressing implements Operand, AdressGetter {
             ort.setContent(content, length);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return (offset != 0 ?

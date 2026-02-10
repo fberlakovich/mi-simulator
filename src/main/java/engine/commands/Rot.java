@@ -59,15 +59,9 @@ public class Rot extends Command {
         Operand op3 = Operand.decode(machine, 4);
         return new Rot(machine, 0, pc, op1, op2, op3, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getLabel()
-     */
     @Override
     public ArrayList<LabelInUse> getLabel() {
-        ArrayList<LabelInUse> ret = new ArrayList<LabelInUse>();
+        ArrayList<LabelInUse> ret = new ArrayList<>();
         if (op1 instanceof AbsAddress && ((AbsAddress) op1).hasLabel()) {
             ret.add(new LabelInUse(this, ((AbsAddress) op1).getLabel(),
                     (AbsAddress) op1));
@@ -83,12 +77,6 @@ public class Rot extends Command {
         }
         return ret;
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte opcode = new MyByte("E8");
@@ -116,24 +104,12 @@ public class Rot extends Command {
         return MyByte.toByteArray(ret);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#hasLabel()
-     */
     @Override
     public boolean hasLabel() {
         return ((op1 instanceof AbsAddress) && (((AbsAddress) op1).hasLabel())) || (
                 (op2 instanceof AbsAddress) && (((AbsAddress) op2).hasLabel())) || (
                 (op3 instanceof AbsAddress) && (((AbsAddress) op3).hasLabel()));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         super.run();
@@ -157,12 +133,6 @@ public class Rot extends Command {
         machine.getFlags().setNegative(res < 0);
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#setAdress(int)
-     */
     @Override
     public void setAdress(int adress) {
         this.adress = adress;
@@ -178,12 +148,6 @@ public class Rot extends Command {
                     adress + 1 + op1.encode().length + op2.encode().length);
         }
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
 

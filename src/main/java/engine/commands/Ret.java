@@ -1,6 +1,3 @@
-/**
- *
- */
 package engine.commands;
 
 import engine.Machine;
@@ -44,12 +41,6 @@ public class Ret extends Command {
     public static Command decode(Machine machine, int pc, Opcode opcode) {
         return new Ret(machine, 0, pc, 0, 0);
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#getOpCode()
-     */
     @Override
     public byte[] encode() {
         MyByte opcode = new MyByte("F3");
@@ -57,12 +48,6 @@ public class Ret extends Command {
         return MyByte.toByteArray(new MyByte[]{opcode});
 
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see compiler.Command#run()
-     */
     @Override
     public synchronized void run() {
         // Pop return address from stack (read from [SP], then increment SP)
@@ -72,12 +57,6 @@ public class Ret extends Command {
         int target = NumberConversion.myBytetoIntWithoutSign(sp.getContent());
         pc.setContent(NumberConversion.intToByte(target, 4));
     }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
         return "RET";
